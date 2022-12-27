@@ -279,7 +279,10 @@ impl Metric for UpdatesMetric {
       .stdout;
     let updates = String::from_utf8_lossy(&out).to_string();
     let system = if updates.contains("linux") { "!" } else { "" };
-    self.value = format!("🔁 {}{}", system, updates.lines().count());
+    let update_count = updates.lines().count();
+    if update_count > 0 {
+      self.value = format!("🔁 {}{}", system, update_count);
+    }
   }
   fn get_value(&self) -> String {
     self.value.to_string()
