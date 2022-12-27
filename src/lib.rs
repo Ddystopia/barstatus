@@ -1,5 +1,4 @@
 use chrono::offset::Local;
-use std::fs;
 use std::fs::File;
 use std::io::{prelude::*, BufReader, Seek, SeekFrom};
 use std::process::Command;
@@ -14,7 +13,6 @@ pub trait Metric {
 pub struct CPUMetric {
   cpu_usage: u64,
   timeout: Duration,
-  proc_file: fs::File,
   total: u64,
   idle: u64,
 }
@@ -24,7 +22,6 @@ impl CPUMetric {
     CPUMetric {
       cpu_usage: 0,
       timeout,
-      proc_file: File::open("/proc/stat").expect("Failed to open proc stat file."),
       total: 1,
       idle: 1,
     }
@@ -36,7 +33,8 @@ impl Metric for CPUMetric {
     self.timeout
   }
   fn update(&mut self) -> () {
-    let mut buf_reader = BufReader::new(&self.proc_file);
+    let proc_file = File::open("/proc/stat").expect("Failed to open proc stat file.");
+    let mut buf_reader = BufReader::new(proc_file);
     buf_reader.seek(SeekFrom::Start(0_u64)).expect("/proc/stat");
     let mut timings = String::new();
     buf_reader.read_line(&mut timings).expect("/proc/stat");
@@ -65,42 +63,17 @@ pub struct NetMetric {
   download: u64,
   rx_bytes: u64,
   tx_bytes: u64,
-  rx_files: Vec<File>,
-  tx_files: Vec<File>,
   last_call: SystemTime,
 }
 
 impl NetMetric {
   pub fn new(timeout: Duration) -> NetMetric {
-    let interfaces = Command::new("sh")
-      .arg("-c")
-      .arg("ip addr | awk '/state UP/ {print $2}' | sed 's/.$//'")
-      .output()
-      .expect("Failed to get interfaces")
-      .stdout;
-    let interfaces = String::from_utf8_lossy(&interfaces)
-      .split_whitespace()
-      .map(|s| s.to_string())
-      .collect::<Vec<_>>();
-    let rx_files: Vec<File> = interfaces
-      .iter()
-      .map(|ifc| format!("/sys/class/net/{}/statistics/rx_bytes", ifc))
-      .map(|path| File::open(path).expect("Failed to open network files"))
-      .collect::<Vec<_>>();
-    let tx_files: Vec<File> = interfaces
-      .iter()
-      .map(|ifc| format!("/sys/class/net/{}/statistics/tx_bytes", ifc))
-      .map(|path| File::open(path).expect("Failed to open network files"))
-      .collect::<Vec<_>>();
-
     NetMetric {
       timeout,
       upload: 0,
       download: 0,
       rx_bytes: 0,
       tx_bytes: 0,
-      rx_files,
-      tx_files,
       last_call: SystemTime::now(),
     }
   }
@@ -120,6 +93,34 @@ impl NetMetric {
       format!("{}{}", number, powers[pow])
     }
   }
+  fn get_zipped_xfiles() -> Vec<(File, File)> {
+    let interfaces = Command::new("sh")
+      .arg("-c")
+      .arg("ip addr | awk '/state UP/ {print $2}' | sed 's/.$//'")
+      .output()
+      .expect("Failed to get interfaces")
+      .stdout;
+    let interfaces = String::from_utf8_lossy(&interfaces)
+      .split_whitespace()
+      .map(|s| s.to_string())
+      .collect::<Vec<_>>();
+
+    interfaces
+      .iter()
+      .map(|interface| {
+        (
+          format!("/sys/class/net/{}/statistics/rx_bytes", interface),
+          format!("/sys/class/net/{}/statistics/tx_bytes", interface),
+        )
+      })
+      .map(|(p1, p2)| {
+        (
+          File::open(p1).expect("Failed to open network files"),
+          File::open(p2).expect("Failed to open network files"),
+        )
+      })
+      .collect::<Vec<_>>()
+  }
 }
 
 impl Metric for NetMetric {
@@ -130,7 +131,7 @@ impl Metric for NetMetric {
     let mut rx_bytes: u64 = 0;
     let mut tx_bytes: u64 = 0;
 
-    for (rx, tx) in std::iter::zip(&self.rx_files, &self.tx_files) {
+    for (rx, tx) in NetMetric::get_zipped_xfiles() {
       let mut buf_reader = BufReader::new(rx);
       buf_reader.seek(SeekFrom::Start(0_u64)).expect("Net failed");
       let mut rx_b = String::new();
@@ -261,7 +262,7 @@ impl UpdatesMetric {
   pub fn new(timeout: Duration) -> UpdatesMetric {
     UpdatesMetric {
       timeout,
-      value: "".to_string(),
+      value: String::new(),
     }
   }
 }

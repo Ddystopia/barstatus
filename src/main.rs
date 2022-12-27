@@ -7,12 +7,12 @@ use std::process::Command;
 use std::thread;
 use std::time::{Duration, SystemTime};
 
-const LOOP_TIME: Duration = Duration::from_millis(100);
+const LOOP_TIME: Duration = Duration::from_millis(200);
 
 fn main() {
   let mut metrics: Vec<Box<dyn Metric>> = vec![
     Box::new(NetMetric::new(Duration::from_secs(2))),
-    Box::new(CPUMetric::new(Duration::from_millis(500))),
+    Box::new(CPUMetric::new(Duration::from_millis(600))),
     Box::new(BluetoothChargeMetric::new(Duration::from_secs(1))),
     Box::new(XkbLayoutMetric::new(Duration::ZERO)),
     Box::new(UpdatesMetric::new(Duration::from_secs(60 * 60))),
