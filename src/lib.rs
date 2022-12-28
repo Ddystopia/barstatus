@@ -80,15 +80,15 @@ impl NetMetric {
   fn numfmt(number: u64) -> String {
     let powers = ["B", "KiB", "MiB", "GiB", "TiB", "PiB"];
     let mut pow = 0;
-    let mut dec: u64 = 0;
+    let mut rem: u64 = 0;
     let mut number: u64 = number;
     while number > 1024 && pow < powers.len() - 1 {
-      dec = number % 1024 * 100 / 1024;
+      rem = number % 1024 * 100 / 1024;
       number /= 1024;
       pow += 1;
     }
-    if dec > 0 && number <= 999 {
-      format!("{}.{}{}", number, dec, powers[pow])
+    if rem > 0 && number < 1000 {
+      format!("{}.{}{}", number, rem, powers[pow])
     } else {
       format!("{}{}", number, powers[pow])
     }
@@ -152,7 +152,7 @@ impl Metric for NetMetric {
       .expect("Net failed")
       .as_secs();
 
-    if delta > 0 {
+    if delta > 0 && rx_bytes > self.rx_bytes && tx_bytes > self.tx_bytes {
       self.download = (rx_bytes - self.rx_bytes) / delta;
       self.upload = (tx_bytes - self.tx_bytes) / delta;
     }

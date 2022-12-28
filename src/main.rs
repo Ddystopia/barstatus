@@ -35,12 +35,7 @@ fn main() {
       .collect::<Vec<_>>()
       .join(" | ");
 
-    let val = format!("{: >93}", val);
-
-    Command::new("xsetroot")
-      .args(["-name", &val])
-      .spawn()
-      .expect("xsetroot failed to execute");
+    set_on_bar(&format!("{: >93}", val));
 
     for i in 0..metrics.len() {
       let delta = SystemTime::now()
@@ -55,4 +50,13 @@ fn main() {
 
     thread::sleep(LOOP_TIME);
   }
+}
+
+fn set_on_bar(val: &str) -> () {
+  Command::new("xsetroot")
+    .args(["-name", &val])
+    .spawn()
+    .expect("xsetroot failed to execute")
+    .wait()
+    .expect("xsetroot failed to execute");
 }
