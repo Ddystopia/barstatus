@@ -272,12 +272,16 @@ impl Metric for UpdatesMetric {
     self.timeout
   }
   fn update(&mut self) -> () {
-    let out = Command::new("sh")
+    let result = Command::new("sh")
       .arg("-c")
       .arg("checkupdates")
       .output()
-      .expect("Failed to check updates")
-      .stdout;
+      .expect("Failed to check updates");
+    if !result.status.success() {
+      self.value.clear();
+      return;
+    }
+    let out = result.stdout;
     let updates = String::from_utf8_lossy(&out).to_string();
     let system = if updates.contains("linux") { "!" } else { "" };
     let update_count = updates.lines().count();
