@@ -11,7 +11,7 @@ pub trait Metric {
 }
 
 pub struct CPUMetric {
-  cpu_usage: u64,
+  cpu_usage: u8,
   timeout: Duration,
   total: u64,
   idle: u64,
@@ -48,7 +48,8 @@ impl Metric for CPUMetric {
     let idle = timings[3].parse::<u64>().unwrap_or(1);
     let delta_total = total - self.total;
     let delta_idle = idle - self.idle;
-    self.cpu_usage = (delta_total * 100 - delta_idle * 100) / delta_total;
+    let p_u64 = (delta_total * 100 - delta_idle * 100) / delta_total;
+    self.cpu_usage = u8::try_from(p_u64).unwrap(); // allways between 0 and 100
     self.total = total;
     self.idle = idle;
   }
@@ -255,14 +256,16 @@ impl Metric for XkbLayoutMetric {
 
 pub struct UpdatesMetric {
   timeout: Duration,
-  value: String,
+  system_update: bool,
+  updates_count: usize,
 }
 
 impl UpdatesMetric {
   pub fn new(timeout: Duration) -> UpdatesMetric {
     UpdatesMetric {
       timeout,
-      value: String::new(),
+      system_update: false,
+      updates_count: 0,
     }
   }
 }
@@ -278,19 +281,21 @@ impl Metric for UpdatesMetric {
       .output()
       .expect("Failed to check updates");
     if !result.status.success() {
-      self.value.clear();
+      self.updates_count = 0;
+      self.system_update = false;
       return;
     }
-    let out = result.stdout;
-    let updates = String::from_utf8_lossy(&out).to_string();
-    let system = if updates.contains("linux") { "!" } else { "" };
-    let update_count = updates.lines().count();
-    if update_count > 0 {
-      self.value = format!("🔁 {}{}", system, update_count);
-    }
+    let updates = String::from_utf8_lossy(&result.stdout).to_string();
+
+    self.system_update = updates.contains("linux");
+    self.updates_count = updates.lines().count();
   }
   fn get_value(&self) -> String {
-    self.value.to_string()
+    if self.updates_count == 0 {
+      return String::new();
+    }
+    let sign = if self.system_update { "!" } else { "" };
+    format!("🔁{} {}", sign, self.updates_count)
   }
 }
 
