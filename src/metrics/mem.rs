@@ -16,7 +16,7 @@ impl Metric for MemMetric {
   fn get_timeout(&self) -> Duration {
     Duration::ZERO
   }
-  fn update(&mut self) -> () {}
+  fn update(&mut self) {}
   fn get_value(&self) -> String {
     // TODO: rewrite from shell api
     let out = Command::new("sh")

@@ -1,12 +1,11 @@
 use barstatus::{
-  metrics::{
-    BluetoothChargeMetric, CPUMetric, DateMetric, NetMetric, UpdatesMetric, XkbLayoutMetric,
-  },
+  metrics::{CPUMetric, DateMetric, NetMetric, UpdatesMetric, XkbLayoutMetric},
   Metric,
 };
-use std::process::Command;
 use std::thread;
 use std::time::Duration;
+
+use std::process::Command;
 
 const LOOP_TIME: Duration = Duration::from_millis(30);
 
@@ -19,12 +18,12 @@ fn main() {
     Box::new(UpdatesMetric::new(Duration::from_secs(60))),
     Box::new(DateMetric::new()),
   ];
-
+  
   loop {
     let val = metrics
       .iter()
       .map(|m| m.get_value())
-      .filter(|s| s.len() > 0)
+      .filter(|s| !s.is_empty())
       .collect::<Vec<_>>()
       .join(" | ");
 
@@ -36,9 +35,9 @@ fn main() {
   }
 }
 
-fn set_on_bar(val: &str) -> () {
+fn set_on_bar(val: &str) {
   Command::new("xsetroot")
-    .args(["-name", &val])
+    .args(["-name", val])
     .spawn()
     .expect("xsetroot failed to execute")
     .wait()

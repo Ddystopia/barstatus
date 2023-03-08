@@ -74,7 +74,7 @@ impl Metric for NetMetric {
   fn get_timeout(&self) -> Duration {
     self.timeout
   }
-  fn update(&mut self) -> () {
+  fn update(&mut self) {
     let delta = match duration_since(self.previous_update) {
       Err(_) => return,
       Ok(d) => d,

@@ -1,8 +1,8 @@
 use crate::{duration_since, Metric};
 use std::fs::File;
 use std::io::{prelude::*, BufReader, Seek, SeekFrom};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
+use std::sync::{Arc};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, SystemTime};
 
@@ -14,7 +14,7 @@ const RUNNING_CAT: [char; RUNNING_CAT_FRAME_COUNT] =
   ['\u{e001}', '\u{e002}', '\u{e003}', '\u{e004}', '\u{e005}'];
 
 pub struct CPUMetric {
-  cpu_usage: Arc<Mutex<u8>>,
+  cpu_usage: Arc<AtomicU8>,
   should_stop: Arc<AtomicBool>,
   current_running_cat: usize,
   timeout: Duration,
@@ -24,7 +24,7 @@ pub struct CPUMetric {
 
 impl CPUMetric {
   pub fn new(timeout: Duration) -> CPUMetric {
-    let cpu_usage = Arc::new(Mutex::new(0 as u8));
+    let cpu_usage = Arc::new(AtomicU8::new(0));
     let should_stop = Arc::new(AtomicBool::new(false));
     CPUMetric {
       cpu_usage: cpu_usage.clone(),
@@ -38,13 +38,13 @@ impl CPUMetric {
     }
   }
   fn get_emoji(&self) -> char {
-    if *self.cpu_usage.lock().unwrap() < SLEEPING_THRESHOLD_PERCENTAGE {
+    if self.cpu_usage.load(Ordering::Relaxed) < SLEEPING_THRESHOLD_PERCENTAGE {
       return SLEEPING_CAT;
     }
     RUNNING_CAT[self.current_running_cat]
   }
   fn update_running_cat_faze(&mut self) -> Option<()> {
-    let cpu_usage = *self.cpu_usage.lock().unwrap();
+    let cpu_usage = self.cpu_usage.load(Ordering::Relaxed);
     if cpu_usage < SLEEPING_THRESHOLD_PERCENTAGE {
       self.current_running_cat = 0;
       return Some(());
@@ -60,7 +60,7 @@ impl CPUMetric {
     self.current_running_cat %= RUNNING_CAT_FRAME_COUNT;
     Some(())
   }
-  fn updater(cpu_usage: Arc<Mutex<u8>>, timeout: Duration, should_stop: Arc<AtomicBool>) {
+  fn updater(cpu_usage: Arc<AtomicU8>, timeout: Duration, should_stop: Arc<AtomicBool>) {
     let mut total_old: u64 = 1;
     let mut idle_old: u64 = 1;
 
@@ -85,7 +85,7 @@ impl CPUMetric {
       let delta_idle = idle - idle_old;
       let perc_u64 = (delta_total * 100 - delta_idle * 100) / delta_total;
 
-      *cpu_usage.lock().unwrap() = u8::try_from(perc_u64).unwrap(); // allways between 0 and 100
+      cpu_usage.store(u8::try_from(perc_u64).unwrap(), Ordering::Relaxed); // allways between 0 and 100
       total_old = total;
       idle_old = idle;
       thread::sleep(timeout);
@@ -101,7 +101,7 @@ impl Metric for CPUMetric {
     format!(
       "{} {: >2}% cpu",
       self.get_emoji(),
-      self.cpu_usage.lock().unwrap()
+      self.cpu_usage.load(Ordering::Relaxed),
     )
   }
   fn update(&mut self) {

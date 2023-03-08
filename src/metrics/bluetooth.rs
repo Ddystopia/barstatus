@@ -14,7 +14,7 @@ impl Metric for BluetoothChargeMetric {
   fn get_timeout(&self) -> Duration {
     Duration::ZERO
   }
-  fn update(&mut self) -> () {}
+  fn update(&mut self) {}
   fn get_value(&self) -> String {
     // TODO: rewrite from shell api
     let out = Command::new("sh")
@@ -22,16 +22,16 @@ impl Metric for BluetoothChargeMetric {
       .arg("bluetoothctl info | grep 'Battery Percentage' | sed 's/.*(\\([^)]*\\)).*/\\1/g'")
       .output();
 
-    if let Err(_) = out {
+    if out.is_err() {
       return String::new();
     }
 
     let out = out.unwrap().stdout;
 
     let percentage = String::from_utf8_lossy(&out).to_string();
-    if percentage.len() > 0 {
+    if !percentage.is_empty() {
       return format!("🎧⚡️ {}%", percentage);
     };
-    return percentage;
+    percentage
   }
 }

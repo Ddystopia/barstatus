@@ -63,7 +63,7 @@ impl Metric for UpdatesMetric {
     self.timeout
   }
 
-  fn update(&mut self) -> () {}
+  fn update(&mut self) {}
 
   fn get_value(&self) -> String {
     let updates_count = *self.updates_count.lock().unwrap();
