@@ -4,6 +4,7 @@ use std::time::Duration;
 
 pub struct BluetoothChargeMetric {}
 
+#[allow(clippy::new_without_default)]
 impl BluetoothChargeMetric {
   pub fn new() -> BluetoothChargeMetric {
     BluetoothChargeMetric {}
@@ -22,11 +23,10 @@ impl Metric for BluetoothChargeMetric {
       .arg("bluetoothctl info | grep 'Battery Percentage' | sed 's/.*(\\([^)]*\\)).*/\\1/g'")
       .output();
 
-    if out.is_err() {
-      return String::new();
-    }
-
-    let out = out.unwrap().stdout;
+    let out = match out {
+      Ok(out) => out.stdout,
+      Err(_) => return String::new(),
+    };
 
     let percentage = String::from_utf8_lossy(&out).to_string();
     if !percentage.is_empty() {

@@ -1,5 +1,6 @@
+#![feature(try_blocks)]
 use std::time::{Duration, SystemTime, SystemTimeError};
-pub mod emojis;
+// pub mod emojis;
 pub mod metrics;
 
 pub trait Metric {

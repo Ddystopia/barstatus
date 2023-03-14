@@ -4,6 +4,7 @@ use std::time::Duration;
 
 pub struct DateMetric {}
 
+#[allow(clippy::new_without_default)]
 impl DateMetric {
   pub fn new() -> DateMetric {
     DateMetric {}

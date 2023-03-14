@@ -5,7 +5,9 @@ pub mod mem;
 pub mod net;
 pub mod update;
 pub mod xkblayout;
+pub mod battery;
 
+pub use battery::BatteryMetric;
 pub use bluetooth::BluetoothChargeMetric;
 pub use cpu::CPUMetric;
 pub use date::DateMetric;

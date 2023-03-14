@@ -2,7 +2,7 @@ use crate::{duration_since, Metric};
 use std::fs::File;
 use std::io::{prelude::*, BufReader, Seek, SeekFrom};
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
-use std::sync::{Arc};
+use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, SystemTime};
 
@@ -12,6 +12,18 @@ const MAX_CYCLES_PER_SECOND: f32 = 10.0; // 2.5
 const RUNNING_CAT_FRAME_COUNT: usize = 5;
 const RUNNING_CAT: [char; RUNNING_CAT_FRAME_COUNT] =
   ['\u{e001}', '\u{e002}', '\u{e003}', '\u{e004}', '\u{e005}'];
+
+macro_rules! skip_fail {
+  ($res:expr) => {
+    match $res {
+      Ok(val) => val,
+      Err(e) => {
+        eprintln!("An error: {}; skipped.", e);
+        continue;
+      }
+    }
+  };
+}
 
 pub struct CPUMetric {
   cpu_usage: Arc<AtomicU8>,
@@ -68,11 +80,11 @@ impl CPUMetric {
       if should_stop.load(Ordering::Relaxed) {
         break;
       }
-      let proc_file = File::open("/proc/stat").expect("Failed to open proc stat file.");
+      let proc_file = skip_fail!(File::open("/proc/stat"));
       let mut buf_reader = BufReader::new(proc_file);
-      buf_reader.seek(SeekFrom::Start(0_u64)).expect("/proc/stat");
+      skip_fail!(buf_reader.seek(SeekFrom::Start(0_u64)));
       let mut timings = String::new();
-      buf_reader.read_line(&mut timings).expect("/proc/stat");
+      skip_fail!(buf_reader.read_line(&mut timings));
 
       let timings = timings.split_whitespace().collect::<Vec<&str>>();
       let timings = vec![timings[1], timings[2], timings[3], timings[4]];
@@ -84,8 +96,9 @@ impl CPUMetric {
       let delta_total = total - total_old;
       let delta_idle = idle - idle_old;
       let perc_u64 = (delta_total * 100 - delta_idle * 100) / delta_total;
+      let percentage = u8::try_from(perc_u64).unwrap_or(1); // allways between 0 and 100
 
-      cpu_usage.store(u8::try_from(perc_u64).unwrap(), Ordering::Relaxed); // allways between 0 and 100
+      cpu_usage.store(percentage, Ordering::Relaxed);
       total_old = total;
       idle_old = idle;
       thread::sleep(timeout);
@@ -114,7 +127,7 @@ impl Drop for CPUMetric {
     self.should_stop.store(true, Ordering::Relaxed);
     if let Some(handle) = self.handle.take() {
       // Wait for thread to terminate
-      handle.join().unwrap();
+      handle.join().unwrap_or(());
     }
   }
 }

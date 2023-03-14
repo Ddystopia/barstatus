@@ -50,7 +50,7 @@ impl UpdatesMetric {
         let updates = String::from_utf8_lossy(&result.stdout).to_string();
         tx.send((updates.lines().count(), updates.contains("linux")))
       }
-      .unwrap();
+      .unwrap_or(());
 
       thread::sleep(timeout);
     }

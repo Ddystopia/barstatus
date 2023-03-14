@@ -19,14 +19,13 @@ impl Metric for XkbLayoutMetric {
   fn update(&mut self) {}
   fn get_value(&self) -> String {
     // TODO: rewrite from shell api
-    let out = Command::new("sh")
-      .arg("-c")
-      .arg("xkb-switch")
-      .output()
-      .expect("Failed to get xkb layout")
-      .stdout;
-    let mut loc = String::from_utf8_lossy(&out).to_string();
-    loc.pop();
-    format!("🌍 {}", loc)
+    return match Command::new("sh").arg("-c").arg("xkb-switch").output() {
+      Err(_) => String::new(),
+      Ok(out) => {
+        let mut loc = String::from_utf8_lossy(&out.stdout).to_string();
+        loc.pop();
+        format!("🌍 {}", loc)
+      }
+    };
   }
 }

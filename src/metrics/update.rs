@@ -39,11 +39,14 @@ impl UpdatesMetric {
         break;
       }
 
-      let result = Command::new("sh")
-        .arg("-c")
-        .arg("checkupdates")
-        .output()
-        .expect("Failed to check updates");
+      let result = match Command::new("sh").arg("-c").arg("checkupdates").output() {
+        Err(_) => {
+          thread::sleep(timeout);
+          continue;
+        }
+        Ok(val) => val,
+      };
+
       if !result.status.success() {
         *updates_count.lock().unwrap() = 0;
         *system_update.lock().unwrap() = false;
@@ -81,7 +84,7 @@ impl Drop for UpdatesMetric {
     self.should_stop.store(true, Ordering::Relaxed);
     if let Some(handle) = self.handle.take() {
       // Wait for thread to terminate
-      handle.join().unwrap();
+      handle.join().unwrap_or(());
     }
   }
 }

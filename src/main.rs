@@ -1,9 +1,9 @@
 use barstatus::{
-  metrics::{CPUMetric, DateMetric, NetMetric, UpdatesMetric, XkbLayoutMetric},
+  metrics::{BatteryMetric, CPUMetric, DateMetric, NetMetric, UpdatesMetric, XkbLayoutMetric},
   Metric,
 };
-use std::thread;
 use std::time::Duration;
+use std::{process::ExitStatus, thread};
 
 use std::process::Command;
 
@@ -16,9 +16,10 @@ fn main() {
     // Box::new(BluetoothChargeMetric::new()),
     Box::new(XkbLayoutMetric::new(Duration::from_millis(200))),
     Box::new(UpdatesMetric::new(Duration::from_secs(60))),
+    Box::new(BatteryMetric::new(80)),
     Box::new(DateMetric::new()),
   ];
-  
+
   loop {
     let val = metrics
       .iter()
@@ -27,7 +28,13 @@ fn main() {
       .collect::<Vec<_>>()
       .join(" | ");
 
-    set_on_bar(&format!("{: >93}", val));
+    match set_on_bar(&format!("{: >93}", val)) {
+      Ok(_) => (),
+      Err(e) => {
+        eprintln!("Error while setting on bar: {}", e);
+        break;
+      }
+    };
 
     metrics.iter_mut().for_each(|m| m.update());
 
@@ -35,11 +42,9 @@ fn main() {
   }
 }
 
-fn set_on_bar(val: &str) {
+fn set_on_bar(val: &str) -> Result<ExitStatus, std::io::Error> {
   Command::new("xsetroot")
     .args(["-name", val])
-    .spawn()
-    .expect("xsetroot failed to execute")
+    .spawn()?
     .wait()
-    .expect("xsetroot failed to execute");
 }
