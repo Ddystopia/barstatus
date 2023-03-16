@@ -27,9 +27,8 @@ impl Metric for BatteryMetric {
   fn update(&mut self) {}
   fn get_value(&self) -> String {
     // TODO: rewrite from shell api
-    let percentage = match read_line_from_path("/sys/class/power_supply/BAT0/capacity") {
-      Ok(percentage) => percentage,
-      Err(_) => return String::new(),
+    let Ok(percentage) = read_line_from_path("/sys/class/power_supply/BAT0/capacity") else {
+      return String::new()
     };
     let emoji = match read_line_from_path("/sys/class/power_supply/BAT0/status") {
       Ok(status) if status.trim() == "Charging" => "🔌🔼",

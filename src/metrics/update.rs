@@ -39,12 +39,9 @@ impl UpdatesMetric {
         break;
       }
 
-      let result = match Command::new("sh").arg("-c").arg("checkupdates").output() {
-        Err(_) => {
-          thread::sleep(timeout);
-          continue;
-        }
-        Ok(val) => val,
+      let Ok(result) = Command::new("sh").arg("-c").arg("checkupdates").output() else {
+        thread::sleep(timeout);
+        continue;
       };
 
       if !result.status.success() {

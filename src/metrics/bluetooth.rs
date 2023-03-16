@@ -23,12 +23,11 @@ impl Metric for BluetoothChargeMetric {
       .arg("bluetoothctl info | grep 'Battery Percentage' | sed 's/.*(\\([^)]*\\)).*/\\1/g'")
       .output();
 
-    let out = match out {
-      Ok(out) => out.stdout,
-      Err(_) => return String::new(),
+    let Ok(out) = out else {
+      return String::new();
     };
 
-    let percentage = String::from_utf8_lossy(&out).to_string();
+    let percentage = String::from_utf8_lossy(&out.stdout).to_string();
     if !percentage.is_empty() {
       return format!("🎧⚡️ {}%", percentage);
     };

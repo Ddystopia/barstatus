@@ -54,16 +54,15 @@ impl NetMetric {
     }
   }
   fn get_zipped_xfiles() -> Vec<(File, File)> {
-    let interfaces = match Command::new("sh")
+    let Ok(output) = Command::new("sh")
       .arg("-c")
       .arg("ip addr | awk '/state UP/ {print $2}' | sed 's/.$//'")
-      .output()
+      .output() else
     {
-      Ok(output) => output.stdout,
-      Err(_) => return Vec::new(),
+      return Vec::new()
     };
 
-    let interfaces = String::from_utf8_lossy(&interfaces)
+    let interfaces = String::from_utf8_lossy(&output.stdout)
       .split_whitespace()
       .map(|s| s.to_string())
       .collect::<Vec<_>>();

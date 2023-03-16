@@ -24,8 +24,8 @@ impl Metric for MemMetric {
       .arg("free -h | awk '/Mem/ {printf \"%s/%s\n\", $3, $2}'")
       .output()
     {
-      Err(_) => String::new(),
       Ok(out) => format!("📝 {}", String::from_utf8_lossy(&out.stdout)),
+      Err(_) => String::new(),
     };
   }
 }
