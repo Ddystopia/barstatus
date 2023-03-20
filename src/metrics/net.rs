@@ -47,7 +47,7 @@ impl NetMetric {
       .arg("ip addr | awk '/state UP/ {print $2}' | sed 's/.$//'")
       .output() else
     {
-      return Vec::new()
+      return Vec::new();
     };
 
     let interfaces = String::from_utf8_lossy(&output.stdout)
@@ -89,7 +89,6 @@ impl Metric for NetMetric {
 
     let (rx_bytes, tx_bytes) = NetMetric::get_zipped_xfiles()
       .into_iter()
-      .map(|(rx, tx)| (BufReader::new(rx), BufReader::new(tx)))
       .filter_map(|(rx, tx)| Some((parse_xfile(rx)?, parse_xfile(tx)?)))
       .fold((0, 0), |(rx, tx), (rx1, tx1)| (rx + rx1, tx + tx1));
 
@@ -102,8 +101,8 @@ impl Metric for NetMetric {
       && self.tx_bytes != 0
       && self.rx_bytes != 0
     {
-      self.download = (rx_bytes - self.rx_bytes) / delta;
       self.upload = (tx_bytes - self.tx_bytes) / delta;
+      self.download = (rx_bytes - self.rx_bytes) / delta;
     }
 
     self.rx_bytes = rx_bytes;
@@ -119,9 +118,9 @@ impl Metric for NetMetric {
   }
 }
 
-fn parse_xfile(file: BufReader<File>) -> Option<u64> {
-  let mut file = file;
+fn parse_xfile(file: File) -> Option<u64> {
+  let mut reader = BufReader::new(file);
   let mut line = String::new();
-  file.read_line(&mut line).ok()?;
+  reader.read_line(&mut line).ok()?;
   line.trim().parse().ok()
 }
