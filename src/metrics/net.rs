@@ -101,11 +101,11 @@ impl Metric for NetMetric {
 
     let mut rx_bytes: u64 = 0;
     let mut tx_bytes: u64 = 0;
-
-    for (mut rx, mut tx) in NetMetric::get_zipped_xfiles()
+    let xfiles = NetMetric::get_zipped_xfiles()
       .into_iter()
-      .map(|(r, t)| (BufReader::new(r), BufReader::new(t)))
-    {
+      .map(|(r, t)| (BufReader::new(r), BufReader::new(t)));
+
+    for (mut rx, mut tx) in xfiles {
       let mut rx_b = String::new();
       let mut tx_b = String::new();
 
@@ -133,7 +133,7 @@ impl Metric for NetMetric {
     self.tx_bytes = tx_bytes;
     self.previous_update = now;
   }
-  fn get_value(&self) -> String {
+  fn get_value(&mut self) -> String {
     format!(
       "🔽{}/s 🔼{}/s",
       NetMetric::numfmt(self.download),

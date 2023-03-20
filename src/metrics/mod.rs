@@ -9,7 +9,7 @@ pub mod battery;
 
 pub use battery::BatteryMetric;
 pub use bluetooth::BluetoothChargeMetric;
-pub use cpu::CPUMetric;
+pub use cpu::CpuMetric;
 pub use date::DateMetric;
 pub use mem::MemMetric;
 pub use net::NetMetric;

@@ -16,7 +16,7 @@ impl Metric for BluetoothChargeMetric {
     Duration::ZERO
   }
   fn update(&mut self) {}
-  fn get_value(&self) -> String {
+  fn get_value(&mut self) -> String {
     // TODO: rewrite from shell api
     let out = Command::new("sh")
       .arg("-c")

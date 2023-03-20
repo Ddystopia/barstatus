@@ -17,7 +17,7 @@ impl Metric for MemMetric {
     Duration::ZERO
   }
   fn update(&mut self) {}
-  fn get_value(&self) -> String {
+  fn get_value(&mut self) -> String {
     // TODO: rewrite from shell api
     return match Command::new("sh")
       .arg("-c")

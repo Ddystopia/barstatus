@@ -1,10 +1,11 @@
-use crate::{duration_since, Metric};
+use crate::emojis::RunningCat;
+use crate::Metric;
 use std::fs::File;
 use std::io::{prelude::*, BufReader, Seek, SeekFrom};
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::Arc;
 use std::thread::{self, JoinHandle};
-use std::time::{Duration, SystemTime};
+use std::time::Duration;
 
 const SLEEPING_THRESHOLD_PERCENTAGE: u8 = 10;
 const SLEEPING_CAT: char = '\u{e000}';
@@ -25,53 +26,38 @@ macro_rules! skip_fail {
   };
 }
 
-pub struct CPUMetric {
+pub struct CpuMetric {
   cpu_usage: Arc<AtomicU8>,
   should_stop: Arc<AtomicBool>,
-  current_running_cat: usize,
+  cat_emoji: RunningCat,
   timeout: Duration,
-  previous_cat_update: SystemTime,
   handle: Option<JoinHandle<()>>,
 }
 
-impl CPUMetric {
-  pub fn new(timeout: Duration) -> CPUMetric {
+impl CpuMetric {
+  pub fn new(timeout: Duration) -> CpuMetric {
     let cpu_usage = Arc::new(AtomicU8::new(0));
     let should_stop = Arc::new(AtomicBool::new(false));
-    CPUMetric {
+    CpuMetric {
       cpu_usage: cpu_usage.clone(),
       should_stop: should_stop.clone(),
       timeout,
-      current_running_cat: 0,
-      previous_cat_update: SystemTime::UNIX_EPOCH,
+      cat_emoji: RunningCat::builder()
+        .frames(RUNNING_CAT.to_vec())
+        .sleep_frame(SLEEPING_CAT)
+        .speed_threshold(SLEEPING_THRESHOLD_PERCENTAGE as f32 / 100.)
+        .max_cycles_per_second(MAX_CYCLES_PER_SECOND)
+        .build(),
       handle: Some(thread::spawn(move || {
-        CPUMetric::updater(cpu_usage, timeout, should_stop)
+        CpuMetric::updater(cpu_usage, timeout, should_stop)
       })),
     }
   }
-  fn get_emoji(&self) -> char {
-    if self.cpu_usage.load(Ordering::Relaxed) < SLEEPING_THRESHOLD_PERCENTAGE {
-      return SLEEPING_CAT;
-    }
-    RUNNING_CAT[self.current_running_cat]
-  }
-  fn update_running_cat_faze(&mut self) -> Option<()> {
+  fn get_emoji(&mut self) -> char {
     let cpu_usage = self.cpu_usage.load(Ordering::Relaxed);
-    if cpu_usage < SLEEPING_THRESHOLD_PERCENTAGE {
-      self.current_running_cat = 0;
-      return Some(());
-    }
-    let cps = (cpu_usage as f32 / 100.0) * MAX_CYCLES_PER_SECOND;
-    let fps = RUNNING_CAT_FRAME_COUNT as f32 * cps;
-    let period_per_frame = Duration::from_millis((1000.0 / fps) as u64);
-    if duration_since(self.previous_cat_update).ok()? < period_per_frame {
-      return Some(());
-    }
-    self.previous_cat_update = SystemTime::now();
-    self.current_running_cat += 1;
-    self.current_running_cat %= RUNNING_CAT_FRAME_COUNT;
-    Some(())
+    self.cat_emoji.get_frame(cpu_usage as f32 / 100.)
   }
+
   fn updater(cpu_usage: Arc<AtomicU8>, timeout: Duration, should_stop: Arc<AtomicBool>) {
     let mut total_old: u64 = 1;
     let mut idle_old: u64 = 1;
@@ -106,23 +92,21 @@ impl CPUMetric {
   }
 }
 
-impl Metric for CPUMetric {
+impl Metric for CpuMetric {
   fn get_timeout(&self) -> Duration {
     self.timeout
   }
-  fn get_value(&self) -> String {
+  fn get_value(&mut self) -> String {
     format!(
       "{} {: >2}% cpu",
       self.get_emoji(),
       self.cpu_usage.load(Ordering::Relaxed),
     )
   }
-  fn update(&mut self) {
-    self.update_running_cat_faze();
-  }
+  fn update(&mut self) {}
 }
 
-impl Drop for CPUMetric {
+impl Drop for CpuMetric {
   fn drop(&mut self) {
     self.should_stop.store(true, Ordering::Relaxed);
     if let Some(handle) = self.handle.take() {

@@ -1,5 +1,5 @@
 use barstatus::{
-  metrics::{BatteryMetric, CPUMetric, DateMetric, NetMetric, UpdatesMetric, XkbLayoutMetric},
+  metrics::{BatteryMetric, CpuMetric, DateMetric, NetMetric, UpdatesMetric, XkbLayoutMetric},
   Metric,
 };
 use std::time::Duration;
@@ -12,7 +12,7 @@ const LOOP_TIME: Duration = Duration::from_millis(30);
 fn main() {
   let mut metrics: Vec<Box<dyn Metric>> = vec![
     Box::new(NetMetric::new(Duration::from_secs(2))),
-    Box::new(CPUMetric::new(Duration::from_millis(600))),
+    Box::new(CpuMetric::new(Duration::from_millis(600))),
     // Box::new(BluetoothChargeMetric::new()),
     Box::new(XkbLayoutMetric::new(Duration::from_millis(200))),
     Box::new(UpdatesMetric::new(Duration::from_secs(60))),
@@ -21,19 +21,16 @@ fn main() {
   ];
 
   loop {
-    let val = metrics
-      .iter()
+    let line = metrics
+      .iter_mut()
       .map(|m| m.get_value())
       .filter(|s| !s.is_empty())
       .collect::<Vec<_>>()
       .join(" | ");
 
-    match set_on_bar(&format!("{: >93}", val)) {
-      Ok(_) => (),
-      Err(e) => {
-        eprintln!("Error while setting on bar: {}", e);
-        break;
-      }
+    if let Err(e) = set_on_bar(&format!("{: >93}", line)) {
+      eprintln!("Error while setting on bar: {}", e);
+      break;
     };
 
     metrics.iter_mut().for_each(|m| m.update());

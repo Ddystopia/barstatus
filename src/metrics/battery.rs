@@ -25,7 +25,7 @@ impl Metric for BatteryMetric {
     Duration::ZERO
   }
   fn update(&mut self) {}
-  fn get_value(&self) -> String {
+  fn get_value(&mut self) -> String {
     // TODO: rewrite from shell api
     let Ok(percentage) = read_line_from_path("/sys/class/power_supply/BAT0/capacity") else {
       return String::new()

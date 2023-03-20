@@ -16,7 +16,7 @@ impl Metric for DateMetric {
     Duration::ZERO
   }
   fn update(&mut self) {}
-  fn get_value(&self) -> String {
+  fn get_value(&mut self) -> String {
     Local::now()
       .naive_local()
       .format("%a, %b %d %X")

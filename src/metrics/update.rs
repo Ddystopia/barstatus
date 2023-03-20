@@ -65,7 +65,7 @@ impl Metric for UpdatesMetric {
 
   fn update(&mut self) {}
 
-  fn get_value(&self) -> String {
+  fn get_value(&mut self) -> String {
     let updates_count = *self.updates_count.lock().unwrap();
     let system_update = *self.system_update.lock().unwrap();
     if updates_count == 0 {
