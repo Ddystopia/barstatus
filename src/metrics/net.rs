@@ -15,18 +15,6 @@ pub struct NetMetric {
 }
 const POWERS: [&str; 6] = ["B", "KiB", "MiB", "GiB", "TiB", "PiB"];
 
-macro_rules! skip_fail {
-  ($res:expr) => {
-    match $res {
-      Ok(val) => val,
-      Err(e) => {
-        eprintln!("An error: {}; skipped.", e);
-        continue;
-      }
-    }
-  };
-}
-
 impl NetMetric {
   pub fn new(timeout: Duration) -> NetMetric {
     NetMetric {
@@ -99,22 +87,11 @@ impl Metric for NetMetric {
       return;
     }
 
-    let mut rx_bytes: u64 = 0;
-    let mut tx_bytes: u64 = 0;
-    let xfiles = NetMetric::get_zipped_xfiles()
+    let (rx_bytes, tx_bytes) = NetMetric::get_zipped_xfiles()
       .into_iter()
-      .map(|(r, t)| (BufReader::new(r), BufReader::new(t)));
-
-    for (mut rx, mut tx) in xfiles {
-      let mut rx_b = String::new();
-      let mut tx_b = String::new();
-
-      skip_fail!(rx.read_line(&mut rx_b));
-      skip_fail!(tx.read_line(&mut tx_b));
-
-      rx_bytes += skip_fail!(rx_b.trim().parse::<u64>());
-      tx_bytes += skip_fail!(tx_b.trim().parse::<u64>());
-    }
+      .map(|(rx, tx)| (BufReader::new(rx), BufReader::new(tx)))
+      .filter_map(|(rx, tx)| Some((parse_xfile(rx)?, parse_xfile(tx)?)))
+      .fold((0, 0), |(rx, tx), (rx1, tx1)| (rx + rx1, tx + tx1));
 
     let now = SystemTime::now();
     let delta = delta.as_secs();
@@ -140,4 +117,11 @@ impl Metric for NetMetric {
       NetMetric::numfmt(self.upload)
     )
   }
+}
+
+fn parse_xfile(file: BufReader<File>) -> Option<u64> {
+  let mut file = file;
+  let mut line = String::new();
+  file.read_line(&mut line).ok()?;
+  line.trim().parse().ok()
 }
