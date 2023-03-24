@@ -34,11 +34,7 @@ impl UpdatesMetric {
     should_stop: Arc<AtomicBool>,
     timeout: Duration,
   ) {
-    loop {
-      if should_stop.load(Ordering::Relaxed) {
-        break;
-      }
-
+    while !should_stop.load(Ordering::Relaxed) {
       let Ok(result) = Command::new("sh").arg("-c").arg("checkupdates").output() else {
         thread::sleep(timeout);
         continue;

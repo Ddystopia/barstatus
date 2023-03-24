@@ -1,9 +1,5 @@
-pub mod running_cat;
-pub mod sleeping_cat;
+pub mod animated_emoji;
+pub mod animated_emoji_builder;
 
-pub use running_cat::RunningCat;
-pub use sleeping_cat::SleepingCat;
-
-pub trait EmojiRenderer {
-  fn get_emoji() -> char;
-}
+pub use animated_emoji::AnimatedEmoji;
+pub use animated_emoji_builder::AnimatedEmojiBuilder;
