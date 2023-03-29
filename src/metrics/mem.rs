@@ -2,7 +2,9 @@ use crate::Metric;
 use std::process::Command;
 use std::time::Duration;
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MemMetric {}
+
 
 #[allow(clippy::new_without_default)]
 impl MemMetric {

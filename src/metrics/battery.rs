@@ -10,6 +10,7 @@ fn read_line_from_path(path: &str) -> Result<String, std::io::Error> {
   buf_reader.read_line(&mut result).map(|_| result)
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BatteryMetric {
   threshold: u8,
 }

@@ -2,6 +2,7 @@ use crate::Metric;
 use std::process::Command;
 use std::time::Duration;
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct XkbLayoutMetric {
   timeout: Duration,
 }

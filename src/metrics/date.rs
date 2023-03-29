@@ -2,6 +2,7 @@ use crate::Metric;
 use chrono::offset::Local;
 use std::time::Duration;
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DateMetric {}
 
 #[allow(clippy::new_without_default)]

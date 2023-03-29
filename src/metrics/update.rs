@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
+#[derive(Debug)]
 pub struct UpdatesMetric {
   system_update: Arc<Mutex<bool>>,
   updates_count: Arc<Mutex<usize>>,

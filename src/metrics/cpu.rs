@@ -9,18 +9,19 @@ use std::time::Duration;
 
 const SLEEPING_THRESHOLD_PERCENTAGE: f32 = 0.1;
 const SLEEPING_CAT: char = '\u{e000}';
-const MAX_CYCLES_PER_SECOND: f32 = 10.0; // 2.5
+const MAX_FREQUENCY: u32 = 10;
 const RUNNING_CAT_FRAME_COUNT: usize = 5;
 const RUNNING_CAT: [char; RUNNING_CAT_FRAME_COUNT] =
   ['\u{e001}', '\u{e002}', '\u{e003}', '\u{e004}', '\u{e005}'];
 
+#[derive(Debug)]
 pub struct CpuMetric {
   cpu_usage: Arc<AtomicU8>,
   should_stop: Arc<AtomicBool>,
   running_cat_emoji: AnimatedEmoji,
   sleeping_cat_emoji: AnimatedEmoji,
   timeout: Duration,
-  handle: Option<JoinHandle<()>>,
+  handle: Option<JoinHandle<Result<(), ()>>>,
 }
 
 impl CpuMetric {
@@ -33,11 +34,11 @@ impl CpuMetric {
       timeout,
       running_cat_emoji: AnimatedEmoji::builder()
         .frames(RUNNING_CAT.to_vec())
-        .max_cycles_per_second(MAX_CYCLES_PER_SECOND)
+        .max_frequency(MAX_FREQUENCY)
         .build(),
       sleeping_cat_emoji: AnimatedEmoji::builder()
         .frames(vec![SLEEPING_CAT])
-        .max_cycles_per_second(MAX_CYCLES_PER_SECOND)
+        .max_frequency(MAX_FREQUENCY)
         .build(),
       handle: Some(thread::spawn(move || {
         CpuMetric::updater(cpu_usage, timeout, should_stop)
@@ -56,20 +57,24 @@ impl CpuMetric {
     }
   }
 
-  fn updater(cpu_usage: Arc<AtomicU8>, timeout: Duration, should_stop: Arc<AtomicBool>) {
+  fn updater(
+    cpu_usage: Arc<AtomicU8>,
+    timeout: Duration,
+    should_stop: Arc<AtomicBool>,
+  ) -> Result<(), ()> {
     let mut total_old: u64 = 1;
     let mut idle_old: u64 = 1;
 
     while !should_stop.load(Ordering::Relaxed) {
-      let Ok(proc_file) = File::open("/proc/stat") else { return };
+      let proc_file = File::open("/proc/stat").map_err(|_| ())?;
       let mut buf_reader = BufReader::new(proc_file);
       let mut timings = String::new();
-      let Ok(_) = buf_reader.read_line(&mut timings) else { return };
+      buf_reader.read_line(&mut timings).map_err(|_| ())?;
 
       let timings = timings.split_whitespace().collect::<Vec<&str>>();
       let timings = [timings[1], timings[2], timings[3], timings[4]];
       let total: u64 = timings.iter().map(|s| s.parse().unwrap_or(1)).sum();
-      let idle = timings[3].parse::<u64>().unwrap_or(1);
+      let idle: u64 = timings[3].parse().unwrap_or(1);
       let delta_total = total - total_old;
       let delta_idle = idle - idle_old;
       let perc_u64 = (delta_total * 100 - delta_idle * 100) / delta_total;
@@ -80,6 +85,8 @@ impl CpuMetric {
       idle_old = idle;
       thread::sleep(timeout);
     }
+
+    Ok(())
   }
 }
 
@@ -102,7 +109,7 @@ impl Drop for CpuMetric {
     self.should_stop.store(true, Ordering::Relaxed);
     if let Some(handle) = self.handle.take() {
       // Wait for thread to terminate
-      handle.join().unwrap_or(());
+      handle.join().unwrap_or(Ok(())).unwrap_or(());
     }
   }
 }

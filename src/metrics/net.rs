@@ -5,6 +5,8 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::time::{Duration, SystemTime};
 
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct NetMetric {
   upload: u64,
   download: u64,
@@ -13,6 +15,7 @@ pub struct NetMetric {
   timeout: Duration,
   previous_update: SystemTime,
 }
+
 const POWERS: [&str; 6] = ["B", "KiB", "MiB", "GiB", "TiB", "PiB"];
 
 impl NetMetric {
