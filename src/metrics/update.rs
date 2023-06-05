@@ -1,84 +1,89 @@
 use crate::Metric;
 use std::process::Command;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
 #[derive(Debug)]
 pub struct UpdatesMetric {
-  system_update: Arc<Mutex<bool>>,
-  updates_count: Arc<Mutex<usize>>,
-  should_stop: Arc<AtomicBool>,
-  timeout: Duration,
-  handle: Option<JoinHandle<()>>,
+    system_update: Arc<AtomicBool>,
+    updates_count: Arc<AtomicUsize>,
+    should_stop: Arc<AtomicBool>,
+    timeout: Duration,
+    handle: Option<JoinHandle<()>>,
 }
 
 impl UpdatesMetric {
-  pub fn new(timeout: Duration) -> UpdatesMetric {
-    let updates_count = Arc::new(Mutex::new(0));
-    let system_update = Arc::new(Mutex::new(false));
-    let should_stop = Arc::new(AtomicBool::new(false));
-    UpdatesMetric {
-      timeout,
-      updates_count: updates_count.clone(),
-      system_update: system_update.clone(),
-      should_stop: should_stop.clone(),
-      handle: Some(thread::spawn(move || {
-        UpdatesMetric::updater(system_update, updates_count, should_stop, timeout)
-      })),
+    pub fn new(timeout: Duration) -> UpdatesMetric {
+        let updates_count = Arc::new(AtomicUsize::new(0));
+        let system_update = Arc::new(AtomicBool::new(false));
+        let should_stop = Arc::new(AtomicBool::new(false));
+        UpdatesMetric {
+            timeout,
+            updates_count: updates_count.clone(),
+            system_update: system_update.clone(),
+            should_stop: should_stop.clone(),
+            handle: Some(thread::spawn(move || {
+                UpdatesMetric::updater(system_update, updates_count, should_stop, timeout)
+            })),
+        }
     }
-  }
-  fn updater(
-    system_update: Arc<Mutex<bool>>,
-    updates_count: Arc<Mutex<usize>>,
-    should_stop: Arc<AtomicBool>,
-    timeout: Duration,
-  ) {
-    while !should_stop.load(Ordering::Relaxed) {
-      let Ok(result) = Command::new("sh").arg("-c").arg("checkupdates").output() else {
-        thread::sleep(timeout);
-        continue;
-      };
+    fn updater(
+        system_update: Arc<AtomicBool>,
+        updates_count: Arc<AtomicUsize>,
+        should_stop: Arc<AtomicBool>,
+        timeout: Duration,
+    ) {
+        while !should_stop.load(Ordering::Relaxed) {
+            let Ok(result) = Command::new("sh").arg("-c").arg("checkupdates").output() else {
+                thread::sleep(timeout);
+                continue;
+             };
 
-      if !result.status.success() {
-        *updates_count.lock().unwrap() = 0;
-        *system_update.lock().unwrap() = false;
-      } else {
-        let updates = String::from_utf8_lossy(&result.stdout).to_string();
+            if !result.status.success() {
+                updates_count.store(0, Ordering::Relaxed);
+                system_update.store(false, Ordering::Relaxed);
+            } else {
+                let updates = String::from_utf8_lossy(&result.stdout).to_string();
 
-        *updates_count.lock().unwrap() = updates.lines().count();
-        *system_update.lock().unwrap() = updates.contains("linux");
-      }
-      thread::sleep(timeout);
+                updates_count.store(updates.lines().count(), Ordering::Relaxed);
+                system_update.store(updates.contains("linux"), Ordering::Relaxed);
+            }
+            thread::sleep(timeout);
+        }
     }
-  }
 }
 
 impl Metric for UpdatesMetric {
-  fn get_timeout(&self) -> Duration {
-    self.timeout
-  }
-
-  fn update(&mut self) {}
-
-  fn get_value(&mut self) -> String {
-    let updates_count = *self.updates_count.lock().unwrap();
-    let system_update = *self.system_update.lock().unwrap();
-    if updates_count == 0 {
-      return String::new();
+    fn get_timeout(&self) -> Duration {
+        self.timeout
     }
-    let sign = if system_update { "!" } else { "" };
-    format!("🔁{} {}", sign, updates_count)
-  }
+
+    fn get_value(&mut self) -> Option<String> {
+        let updates_count = self.updates_count.load(Ordering::Relaxed);
+        let system_update = self.system_update.load(Ordering::Relaxed);
+
+        if updates_count == 0 {
+            return None;
+        }
+
+        let value = if system_update {
+            format!("🔁! {}", updates_count)
+        } else {
+            format!("🔁 {}", updates_count)
+        };
+
+        Some(value)
+    }
 }
 
 impl Drop for UpdatesMetric {
-  fn drop(&mut self) {
-    self.should_stop.store(true, Ordering::Relaxed);
-    if let Some(handle) = self.handle.take() {
-      // Wait for thread to terminate
-      handle.join().unwrap_or(());
+    fn drop(&mut self) {
+        self.should_stop.store(true, Ordering::Relaxed);
+        if let Some(handle) = self.handle.take() {
+            // Wait for thread to terminate
+            handle.join().unwrap_or(());
+        }
     }
-  }
 }
