@@ -28,6 +28,7 @@ impl NetMetric {
             previous_update: SystemTime::now() - timeout,
         }
     }
+
     fn numfmt(number: u64) -> String {
         let mut pow = 0;
         let mut rem: u64 = 0;
@@ -45,31 +46,23 @@ impl NetMetric {
             format!("{number}{power}")
         }
     }
-    fn get_zipped_xfiles() -> impl Iterator<Item = (File, File)> {
+
+    fn get_zipped_xfiles() -> Vec<(File, File)> {
         Command::new("sh")
             .arg("-c")
             .arg("ip addr | awk '/state UP/ {print $2}' | sed 's/.$//'")
             .output()
             .ok()
-            .into_iter()
-            .flat_map(|output| {
-                String::from_utf8_lossy(&output.stdout)
-                    .split_whitespace()
-                    .map(|interface| {
-                        (
-                            PathBuf::from("/sys/class/net/")
-                                .join(interface)
-                                .join("statistics/rx_bytes"),
-                            PathBuf::from("/sys/class/net/")
-                                .join(interface)
-                                .join("statistics/tx_bytes"),
-                        )
-                    })
-                    .filter(|(p1, p2)| p1.exists() && p2.exists())
-                    .map(|(p1, p2)| (File::open(p1), File::open(p2)))
-                    .filter_map(|(f1, f2)| Some((f1.ok()?, f2.ok()?)))
-                    .collect::<Vec<_>>()
-            })
+            .and_then(|output| String::from_utf8(output.stdout).ok())
+            .unwrap_or_default()
+            .split_whitespace()
+            .map(|iface| PathBuf::from("/sys/class/net/").join(iface))
+            .map(|iface| iface.join("statistics/"))
+            .map(|iface| (iface.join("rx_bytes"), iface.join("tx_bytes")))
+            .filter(|(p1, p2)| p1.exists() && p2.exists())
+            .map(|(p1, p2)| (File::open(p1), File::open(p2)))
+            .filter_map(|(f1, f2)| Some((f1.ok()?, f2.ok()?)))
+            .collect()
     }
 }
 
@@ -77,6 +70,7 @@ impl Metric for NetMetric {
     fn get_timeout(&self) -> Duration {
         self.timeout
     }
+
     fn update(&mut self) {
         let delta = match duration_since(self.previous_update) {
             Err(_) => return,
@@ -85,6 +79,7 @@ impl Metric for NetMetric {
         };
 
         let (rx_bytes, tx_bytes) = NetMetric::get_zipped_xfiles()
+            .into_iter()
             .filter_map(|(rx, tx)| Some((parse_xfile(rx)?, parse_xfile(tx)?)))
             .fold((0, 0), |(rx, tx), (r, t)| (rx + r, tx + t));
 
