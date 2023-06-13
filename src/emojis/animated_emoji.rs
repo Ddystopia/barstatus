@@ -24,8 +24,8 @@ impl<'a> AnimatedEmoji<'a> {
         }
     }
 
-    pub fn builder<'b>() -> AnimatedEmojiBuilder<'b, MaxFrequencyNotSet, FramesNotSet> {
-        AnimatedEmojiBuilder::<MaxFrequencyNotSet, FramesNotSet>::default()
+    pub fn builder() -> AnimatedEmojiBuilder<MaxFrequencyNotSet, FramesNotSet> {
+        AnimatedEmojiBuilder::default()
     }
     /// speed is a value between 0 and 1
     pub fn get_frame(&mut self, speed: f32) -> char {

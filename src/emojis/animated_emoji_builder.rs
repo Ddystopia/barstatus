@@ -1,57 +1,49 @@
 use super::AnimatedEmoji;
 use std::time::SystemTime;
 
-use std::marker::PhantomData;
-
 // The states to represent whether each field is set
-pub struct MaxFrequencySet;
+pub struct MaxFrequencySet(u32);
 pub struct MaxFrequencyNotSet;
-pub struct FramesSet;
+pub struct FramesSet<'a>(&'a [char]);
 pub struct FramesNotSet;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct AnimatedEmojiBuilder<'a, MaxFrequencyState, FramesState> {
-    max_frequency: Option<u32>,
-    frames: Option<&'a [char]>,
-    _phantom: PhantomData<(MaxFrequencyState, FramesState)>,
+pub struct AnimatedEmojiBuilder<MaxFrequencyState = MaxFrequencyNotSet, FramesState = FramesNotSet>
+{
+    max_frequency: MaxFrequencyState,
+    frames: FramesState,
 }
 
-impl<'a> Default for AnimatedEmojiBuilder<'a, MaxFrequencyNotSet, FramesNotSet> {
-    fn default() -> AnimatedEmojiBuilder<'a, MaxFrequencyNotSet, FramesNotSet> {
+impl Default for AnimatedEmojiBuilder<MaxFrequencyNotSet, FramesNotSet> {
+    fn default() -> AnimatedEmojiBuilder<MaxFrequencyNotSet, FramesNotSet> {
         AnimatedEmojiBuilder {
-            max_frequency: None,
-            frames: None,
-            _phantom: PhantomData,
+            max_frequency: MaxFrequencyNotSet,
+            frames: FramesNotSet,
         }
     }
 }
 
-impl<'a, FA, FB> AnimatedEmojiBuilder<'a, FA, FB> {
-    pub fn max_frequency(
-        self,
-        max_frequency: u32,
-    ) -> AnimatedEmojiBuilder<'a, MaxFrequencySet, FB> {
+impl<'a, FA, FB> AnimatedEmojiBuilder<FA, FB> {
+    pub fn max_frequency(self, max_frequency: u32) -> AnimatedEmojiBuilder<MaxFrequencySet, FB> {
         assert!(max_frequency > 0);
         AnimatedEmojiBuilder {
-            max_frequency: Some(max_frequency),
+            max_frequency: MaxFrequencySet(max_frequency),
             frames: self.frames,
-            _phantom: PhantomData,
         }
     }
-    pub fn frames(self, frames: &'a [char]) -> AnimatedEmojiBuilder<'a, FA, FramesSet> {
+    pub fn frames(self, frames: &'a [char]) -> AnimatedEmojiBuilder<FA, FramesSet<'a>> {
         assert!(!frames.is_empty());
         AnimatedEmojiBuilder {
             max_frequency: self.max_frequency,
-            frames: Some(frames),
-            _phantom: PhantomData,
+            frames: FramesSet(frames),
         }
     }
 }
 
-impl<'a> AnimatedEmojiBuilder<'a, MaxFrequencySet, FramesSet> {
+impl<'a> AnimatedEmojiBuilder<MaxFrequencySet, FramesSet<'a>> {
     pub fn build(self) -> AnimatedEmoji<'a> {
-        let max_frequency = self.max_frequency.unwrap();
-        let frames = self.frames.unwrap();
+        let max_frequency = self.max_frequency.0;
+        let frames = self.frames.0;
         AnimatedEmoji::new(max_frequency, SystemTime::UNIX_EPOCH, frames)
     }
 }
