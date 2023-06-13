@@ -24,6 +24,21 @@ impl Default for AnimatedEmojiBuilder<MaxFrequencyNotSet, FramesNotSet> {
 }
 
 impl<'a, FA, FB> AnimatedEmojiBuilder<FA, FB> {
+    /// Sets the maximum frequency of the animated emoji.
+    ///
+    /// # Arguments
+    ///
+    /// * `max_frequency` - A u32 that represents the maximum frequency that an emoji can be animated. This value must be greater than 0.
+    ///
+    /// # Returns
+    ///
+    /// This function returns an `AnimatedEmojiBuilder` with the `MaxFrequencySet` marker type, and the same `frames` marker type as the original builder.
+    ///
+    /// # Invariants
+    ///
+    /// * The `max_frequency` must be a positive integer. If it is not, this method will panic.
+    ///
+    #[inline]
     pub fn max_frequency(self, max_frequency: u32) -> AnimatedEmojiBuilder<MaxFrequencySet, FB> {
         assert!(max_frequency > 0);
         AnimatedEmojiBuilder {
@@ -31,6 +46,22 @@ impl<'a, FA, FB> AnimatedEmojiBuilder<FA, FB> {
             frames: self.frames,
         }
     }
+
+    /// Sets the frames of the animated emoji.
+    ///
+    /// # Arguments
+    ///
+    /// * `frames` - A slice of characters that represent the frames of the animation.
+    ///
+    /// # Returns
+    ///
+    /// This function returns an `AnimatedEmojiBuilder` with the `FramesSet` marker type, and the same `max_frequency` marker type as the original builder.
+    ///
+    /// # Invariants
+    ///
+    /// * The `frames` slice must not be empty. If it is, this method will panic.
+    ///
+    #[inline]
     pub fn frames(self, frames: &'a [char]) -> AnimatedEmojiBuilder<FA, FramesSet<'a>> {
         assert!(!frames.is_empty());
         AnimatedEmojiBuilder {
