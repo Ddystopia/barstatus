@@ -15,7 +15,7 @@ impl Metric for DateMetric {
     fn get_timeout(&self) -> Duration {
         Duration::ZERO
     }
-    fn get_value(&mut self) -> Option<String> {
+    fn get_value(&self) -> Option<String> {
         Some(
             Local::now()
                 .naive_local()

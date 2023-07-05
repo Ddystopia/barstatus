@@ -30,7 +30,7 @@ pub mod metrics {
 pub trait Metric {
     fn update(&mut self) {}
     fn get_timeout(&self) -> Duration;
-    fn get_value(&mut self) -> Option<String>;
+    fn get_value(&self) -> Option<String>;
 }
 
 fn duration_since(timestamp: SystemTime) -> Result<Duration, SystemTimeError> {

@@ -60,7 +60,7 @@ impl Metric for UpdatesMetric {
         self.timeout
     }
 
-    fn get_value(&mut self) -> Option<String> {
+    fn get_value(&self) -> Option<String> {
         let updates_count = self.updates_count.load(Ordering::Relaxed);
         let system_update = self.system_update.load(Ordering::Relaxed);
 

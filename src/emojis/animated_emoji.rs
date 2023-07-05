@@ -1,10 +1,10 @@
 use super::animated_emoji_builder::{AnimatedEmojiBuilder, FramesNotSet, MaxFrequencyNotSet};
 use crate::duration_since;
-use std::time::{Duration, SystemTime};
+use std::{time::{Duration, SystemTime}, num::NonZeroU32};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AnimatedEmoji<'a> {
-    max_frequency: u32,
+    max_frequency: NonZeroU32,
     frame: usize,
     previous_frame_update: SystemTime,
     frames: &'a [char],
@@ -12,7 +12,7 @@ pub struct AnimatedEmoji<'a> {
 
 impl<'a> AnimatedEmoji<'a> {
     pub(super) fn new(
-        max_frequency: u32,
+        max_frequency: NonZeroU32,
         previous_frame_update: SystemTime,
         frames: &'a [char],
     ) -> AnimatedEmoji<'a> {
@@ -28,10 +28,10 @@ impl<'a> AnimatedEmoji<'a> {
         AnimatedEmojiBuilder::default()
     }
     /// speed is a value between 0 and 1
-    pub fn get_frame(&mut self, speed: f32) -> char {
+    pub fn next_frame(&mut self, speed: f64) -> char {
         assert!((0.0..=1.0).contains(&speed));
-        let frequency = speed * self.max_frequency as f32;
-        let fps = self.frames.len() as f32 * frequency;
+        let frequency = speed * self.max_frequency.get() as f64;
+        let fps = self.frames.len() as f64 * frequency;
         let period_per_frame = Duration::from_millis((1000.0 / fps) as u64);
 
         if let Ok(previous_update) = duration_since(self.previous_frame_update) {

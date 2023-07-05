@@ -101,7 +101,7 @@ impl Metric for NetMetric {
         self.previous_update = now;
     }
 
-    fn get_value(&mut self) -> Option<String> {
+    fn get_value(&self) -> Option<String> {
         Some(format!(
             "🔽{download}/s 🔼{upload}/s",
             download = NetMetric::numfmt(self.download),

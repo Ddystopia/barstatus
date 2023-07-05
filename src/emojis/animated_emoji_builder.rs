@@ -1,8 +1,8 @@
 use super::AnimatedEmoji;
-use std::time::SystemTime;
+use std::{time::SystemTime, num::NonZeroU32};
 
 // The states to represent whether each field is set
-pub struct MaxFrequencySet(u32);
+pub struct MaxFrequencySet(NonZeroU32);
 pub struct MaxFrequencyNotSet;
 pub struct FramesSet<'a>(&'a [char]);
 pub struct FramesNotSet;
@@ -39,8 +39,7 @@ impl<'a, FA, FB> AnimatedEmojiBuilder<FA, FB> {
     /// * The `max_frequency` must be a positive integer. If it is not, this method will panic.
     ///
     #[inline]
-    pub fn max_frequency(self, max_frequency: u32) -> AnimatedEmojiBuilder<MaxFrequencySet, FB> {
-        assert!(max_frequency > 0);
+    pub fn max_frequency(self, max_frequency: NonZeroU32) -> AnimatedEmojiBuilder<MaxFrequencySet, FB> {
         AnimatedEmojiBuilder {
             max_frequency: MaxFrequencySet(max_frequency),
             frames: self.frames,

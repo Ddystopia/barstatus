@@ -26,7 +26,7 @@ impl Metric for BatteryMetric {
         Duration::ZERO
     }
 
-    fn get_value(&mut self) -> Option<String> {
+    fn get_value(&self) -> Option<String> {
         let percentage = read_line_from_path("/sys/class/power_supply/BAT0/capacity").ok()?;
 
         let emoji = match read_line_from_path("/sys/class/power_supply/BAT0/status") {

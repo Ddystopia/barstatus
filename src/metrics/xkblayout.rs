@@ -17,7 +17,7 @@ impl Metric for XkbLayoutMetric {
     fn get_timeout(&self) -> Duration {
         self.timeout
     }
-    fn get_value(&mut self) -> Option<String> {
+    fn get_value(&self) -> Option<String> {
         // TODO: rewrite from shell api
         let out = Command::new("sh")
             .arg("-c")
