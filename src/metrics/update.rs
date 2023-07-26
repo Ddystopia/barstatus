@@ -15,17 +15,18 @@ pub struct UpdatesMetric {
 }
 
 impl UpdatesMetric {
-    pub fn new(timeout: Duration) -> UpdatesMetric {
+    #[must_use]
+    pub fn new(timeout: Duration) -> Self {
         let updates_count = Arc::new(AtomicUsize::new(0));
         let system_update = Arc::new(AtomicBool::new(false));
         let should_stop = Arc::new(AtomicBool::new(false));
-        UpdatesMetric {
+        Self {
             timeout,
             updates_count: updates_count.clone(),
             system_update: system_update.clone(),
             should_stop: should_stop.clone(),
             handle: Some(thread::spawn(move || {
-                UpdatesMetric::updater(system_update, updates_count, should_stop, timeout)
+                Self::updater(system_update, updates_count, should_stop, timeout);
             })),
         }
     }
@@ -41,14 +42,14 @@ impl UpdatesMetric {
                 continue;
              };
 
-            if !result.status.success() {
-                updates_count.store(0, Ordering::Relaxed);
-                system_update.store(false, Ordering::Relaxed);
-            } else {
+            if result.status.success() {
                 let updates = String::from_utf8_lossy(&result.stdout).to_string();
 
                 updates_count.store(updates.lines().count(), Ordering::Relaxed);
                 system_update.store(updates.contains("linux"), Ordering::Relaxed);
+            } else {
+                updates_count.store(0, Ordering::Relaxed);
+                system_update.store(false, Ordering::Relaxed);
             }
             thread::sleep(timeout);
         }
@@ -69,9 +70,9 @@ impl Metric for UpdatesMetric {
         }
 
         let value = if system_update {
-            format!("🔁! {}", updates_count)
+            format!("🔁! {updates_count}")
         } else {
-            format!("🔁 {}", updates_count)
+            format!("🔁 {updates_count}")
         };
 
         Some(value)

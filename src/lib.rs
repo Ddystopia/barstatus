@@ -1,4 +1,4 @@
-use std::time::{Duration, SystemTime, SystemTimeError};
+use std::time::Duration;
 pub mod emojis {
     pub mod animated_emoji;
     pub mod animated_emoji_builder;
@@ -31,8 +31,4 @@ pub trait Metric {
     fn update(&mut self) {}
     fn get_timeout(&self) -> Duration;
     fn get_value(&self) -> Option<String>;
-}
-
-fn duration_since(timestamp: SystemTime) -> Result<Duration, SystemTimeError> {
-    SystemTime::now().duration_since(timestamp)
 }

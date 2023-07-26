@@ -6,8 +6,9 @@ use std::time::Duration;
 pub struct DateMetric {}
 
 impl DateMetric {
-    pub fn new() -> DateMetric {
-        DateMetric {}
+    #[must_use]
+    pub fn new() -> Self {
+        Self {}
     }
 }
 

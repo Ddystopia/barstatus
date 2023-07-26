@@ -16,8 +16,9 @@ pub struct BatteryMetric {
 }
 
 impl BatteryMetric {
-    pub fn new(threshold: u8) -> BatteryMetric {
-        BatteryMetric { threshold }
+    #[must_use]
+    pub fn new(threshold: u8) -> Self {
+        Self { threshold }
     }
 }
 
@@ -38,6 +39,6 @@ impl Metric for BatteryMetric {
         let percentage = percentage.trim().parse::<u8>().ok()?;
         let less_than_threshold = percentage < self.threshold;
 
-        less_than_threshold.then(|| format!("{} {}%", emoji, percentage))
+        less_than_threshold.then(|| format!("{emoji} {percentage}%"))
     }
 }

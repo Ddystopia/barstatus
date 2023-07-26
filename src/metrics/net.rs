@@ -1,9 +1,9 @@
-use crate::{duration_since, Metric};
+use crate::Metric;
 use std::fs::File;
 use std::io::{prelude::*, BufReader};
 use std::path::PathBuf;
 use std::process::Command;
-use std::time::{Duration, SystemTime};
+use std::time::{Duration, Instant};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct NetMetric {
@@ -12,20 +12,24 @@ pub struct NetMetric {
     rx_bytes: u64,
     tx_bytes: u64,
     timeout: Duration,
-    previous_update: SystemTime,
+    previous_update: Instant,
 }
 
 const POWERS: [&str; 6] = ["B", "KiB", "MiB", "GiB", "TiB", "PiB"];
 
 impl NetMetric {
-    pub fn new(timeout: Duration) -> NetMetric {
-        NetMetric {
+    /// Creates a new `NetMetric` with the given timeout.
+    /// # Panics
+    /// If the timeout is too large.
+    #[must_use]
+    pub fn new(timeout: Duration) -> Self {
+        Self {
             timeout,
             upload: 0,
             download: 0,
             rx_bytes: 0,
             tx_bytes: 0,
-            previous_update: SystemTime::now() - timeout,
+            previous_update: Instant::now().checked_sub(timeout).unwrap(),
         }
     }
 
@@ -72,18 +76,18 @@ impl Metric for NetMetric {
     }
 
     fn update(&mut self) {
-        let delta = match duration_since(self.previous_update) {
-            Err(_) => return,
-            Ok(d) if d < self.timeout => return,
-            Ok(d) => d,
-        };
+        let delta = self.previous_update.elapsed();
 
-        let (rx_bytes, tx_bytes) = NetMetric::get_zipped_xfiles()
+        if delta < self.timeout {
+            return;
+        }
+
+        let (rx_bytes, tx_bytes) = Self::get_zipped_xfiles()
             .into_iter()
             .filter_map(|(rx, tx)| Some((parse_xfile(rx)?, parse_xfile(tx)?)))
             .fold((0, 0), |(rx, tx), (r, t)| (rx + r, tx + t));
 
-        let now = SystemTime::now();
+        let now = Instant::now();
         let delta = delta.as_secs();
 
         if delta > 0
@@ -104,8 +108,8 @@ impl Metric for NetMetric {
     fn get_value(&self) -> Option<String> {
         Some(format!(
             "🔽{download}/s 🔼{upload}/s",
-            download = NetMetric::numfmt(self.download),
-            upload = NetMetric::numfmt(self.upload)
+            download = Self::numfmt(self.download),
+            upload = Self::numfmt(self.upload)
         ))
     }
 }

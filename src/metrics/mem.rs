@@ -7,8 +7,9 @@ pub struct MemMetric {}
 
 impl MemMetric {
     #[allow(dead_code)]
-    pub fn new() -> MemMetric {
-        MemMetric {}
+    #[must_use]
+    pub fn new() -> Self {
+        Self {}
     }
 }
 

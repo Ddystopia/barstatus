@@ -30,10 +30,11 @@ pub struct CpuMetric {
 }
 
 impl CpuMetric {
-    pub fn new(timeout: Duration) -> CpuMetric {
+    #[must_use]
+    pub fn new(timeout: Duration) -> Self {
         let cpu_usage = Arc::new(AtomicU8::new(0));
         let should_stop = Arc::new(AtomicBool::new(false));
-        CpuMetric {
+        Self {
             cpu_usage: cpu_usage.clone(),
             should_stop: should_stop.clone(),
             timeout,
@@ -50,7 +51,7 @@ impl CpuMetric {
                     .build(),
             ),
             handle: Some(thread::spawn(move || {
-                CpuMetric::updater(cpu_usage, timeout, should_stop)
+                Self::updater(cpu_usage, timeout, should_stop)
             })),
         }
     }

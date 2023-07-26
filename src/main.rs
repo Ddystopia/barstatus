@@ -28,8 +28,8 @@ fn main() {
 
         let line = line.strip_suffix(" | ").unwrap();
 
-        if let Err(e) = set_on_bar(&format!("{: >93}", line)) {
-            eprintln!("Error while setting on bar: {}", e);
+        if let Err(e) = set_on_bar(&format!("{line: >93}")) {
+            eprintln!("Error while setting on bar: {e}");
             break;
         };
 

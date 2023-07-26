@@ -7,8 +7,9 @@ pub struct BluetoothChargeMetric {}
 
 #[allow(clippy::new_without_default)]
 impl BluetoothChargeMetric {
-    pub fn new() -> BluetoothChargeMetric {
-        BluetoothChargeMetric {}
+    #[must_use]
+    pub fn new() -> Self {
+        Self {}
     }
 }
 
@@ -29,6 +30,6 @@ impl Metric for BluetoothChargeMetric {
         percentage
             .is_empty()
             .not()
-            .then(|| format!("🎧⚡️ {}%", percentage))
+            .then(|| format!("🎧⚡️ {percentage}%"))
     }
 }

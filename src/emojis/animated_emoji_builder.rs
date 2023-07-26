@@ -1,5 +1,5 @@
 use super::AnimatedEmoji;
-use std::{time::SystemTime, num::NonZeroU32};
+use std::num::NonZeroU32;
 
 // The states to represent whether each field is set
 pub struct MaxFrequencySet(NonZeroU32);
@@ -15,8 +15,8 @@ pub struct AnimatedEmojiBuilder<MaxFrequencyState = MaxFrequencyNotSet, FramesSt
 }
 
 impl Default for AnimatedEmojiBuilder<MaxFrequencyNotSet, FramesNotSet> {
-    fn default() -> AnimatedEmojiBuilder<MaxFrequencyNotSet, FramesNotSet> {
-        AnimatedEmojiBuilder {
+    fn default() -> Self {
+        Self {
             max_frequency: MaxFrequencyNotSet,
             frames: FramesNotSet,
         }
@@ -56,13 +56,13 @@ impl<'a, FA, FB> AnimatedEmojiBuilder<FA, FB> {
     ///
     /// This function returns an `AnimatedEmojiBuilder` with the `FramesSet` marker type, and the same `max_frequency` marker type as the original builder.
     ///
-    /// # Invariants
+    /// # Panics
     ///
     /// * The `frames` slice must not be empty. If it is, this method will panic.
     ///
     #[inline]
     pub fn frames(self, frames: &'a [char]) -> AnimatedEmojiBuilder<FA, FramesSet<'a>> {
-        assert!(!frames.is_empty());
+        assert!(!frames.is_empty(), "The frames should not be empty");
         AnimatedEmojiBuilder {
             max_frequency: self.max_frequency,
             frames: FramesSet(frames),
@@ -71,9 +71,10 @@ impl<'a, FA, FB> AnimatedEmojiBuilder<FA, FB> {
 }
 
 impl<'a> AnimatedEmojiBuilder<MaxFrequencySet, FramesSet<'a>> {
+    #[must_use]
     pub fn build(self) -> AnimatedEmoji<'a> {
         let max_frequency = self.max_frequency.0;
         let frames = self.frames.0;
-        AnimatedEmoji::new(max_frequency, SystemTime::UNIX_EPOCH, frames)
+        AnimatedEmoji::new(max_frequency, None, frames)
     }
 }

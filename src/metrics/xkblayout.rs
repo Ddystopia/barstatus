@@ -8,8 +8,9 @@ pub struct XkbLayoutMetric {
 }
 
 impl XkbLayoutMetric {
-    pub fn new(timeout: Duration) -> XkbLayoutMetric {
-        XkbLayoutMetric { timeout }
+    #[must_use]
+    pub fn new(timeout: Duration) -> Self {
+        Self { timeout }
     }
 }
 
