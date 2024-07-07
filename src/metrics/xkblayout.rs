@@ -24,7 +24,11 @@ impl XkbLayoutMetric {
             .output()
             .ok()?;
 
-        let loc = String::from_utf8_lossy(&out.stdout);
+impl Metric for XkbLayoutMetric {
+    fn timeout(&self) -> Duration {
+        self.timeout
+    }
+}
 
 impl Display for XkbLayoutMetric {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

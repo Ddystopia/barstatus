@@ -32,6 +32,40 @@ pub mod metrics {
 
 pub trait Metric: Display + std::fmt::Debug {
     fn update(&mut self) {}
-    fn get_timeout(&self) -> Duration;
-    fn get_value(&self) -> Option<String>;
+    fn timeout(&self) -> Duration;
+}
+
+#[macro_export]
+macro_rules! generic_for_each {
+    ($list:ident, $trait:ident $( + $trait_rest:ident )*, |$x:ident| $body:expr) => {
+        generic_for_each!($list, $trait $( + $trait_rest)*, (), |$x, _tmp: ()| $body);
+    };
+    ($list:ident, $trait:ident $( + $trait_rest:ident )*, $deps:expr, |$x:ident, $deps_var:ident:$dep_ty:ty| $body:expr) => {
+        {
+            use frunk::hlist::{HCons, HNil};
+            #[allow(non_camel_case_types)]
+            trait $list {
+                fn for_each(&mut self, dep: $dep_ty);
+            }
+            impl<H: $trait $(+ $trait_rest)*, T: $list> $list for HCons<H, T> {
+                #[inline(always)]
+                fn for_each(&mut self, dep: $dep_ty) {
+                    #[allow(unused_parens)]
+                    #[inline(always)]
+                    fn generic_call($x: &mut (impl $trait $(+ $trait_rest)*), $deps_var: $dep_ty) {
+                        _ = { $body }
+                    }
+                    generic_call(&mut self.head, dep);
+                    self.tail.for_each(dep);
+                }
+            }
+
+            impl $list for HNil {
+                #[inline(always)]
+                fn for_each(&mut self, dep: $dep_ty) {}
+            }
+
+            $list.for_each($deps);
+        }
+    };
 }
