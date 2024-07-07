@@ -1,4 +1,7 @@
-use std::time::Duration;
+use std::{fmt::Display, time::Duration};
+
+pub(crate) mod read_line;
+
 pub mod emojis {
     pub mod animated_emoji;
     pub mod animated_emoji_builder;

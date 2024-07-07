@@ -76,10 +76,7 @@ impl CpuMetric {
         let mut idle_old: u64 = 1;
 
         while !should_stop.load(Ordering::Relaxed) {
-            let proc_file = File::open("/proc/stat").map_err(|_| ())?;
-            let mut buf_reader = BufReader::new(proc_file);
-            let mut timings = String::new();
-            buf_reader.read_line(&mut timings).map_err(|_| ())?;
+            let timings = read_line_from_path::<256>("/proc/stat").map_err(|_| ())?;
 
             let mut timings = timings
                 .split_whitespace()

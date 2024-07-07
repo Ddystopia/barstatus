@@ -1,9 +1,11 @@
-use crate::Metric;
-use std::fs::File;
-use std::io::{prelude::*, BufReader};
-use std::path::PathBuf;
-use std::process::Command;
-use std::time::{Duration, Instant};
+use std::{
+    fmt::Display,
+    path::Path,
+    process::Command,
+    time::{Duration, Instant},
+};
+
+use crate::{read_line::read_line_from_path, Metric};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct NetMetric {
@@ -16,6 +18,28 @@ pub struct NetMetric {
 }
 
 const POWERS: [&str; 6] = ["B", "KiB", "MiB", "GiB", "TiB", "PiB"];
+
+struct NumFmt(u64);
+
+impl Display for NumFmt {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut pow = 0;
+        let mut rem: u64 = 0;
+        let mut number: u64 = self.0;
+        while number > 1024 && pow < POWERS.len() - 1 {
+            rem = number % 1024 * 100 / 1024;
+            number /= 1024;
+            pow += 1;
+        }
+        let power = POWERS[pow];
+
+        if rem > 0 && number < 1000 {
+            write!(f, "{number}.{rem}{power}")
+        } else {
+            write!(f, "{number}{power}")
+        }
+    }
+}
 
 impl NetMetric {
     /// Creates a new `NetMetric` with the given timeout.
@@ -56,17 +80,31 @@ impl NetMetric {
             .arg("-c")
             .arg("ip addr | awk '/state UP/ {print $2}' | sed 's/.$//'")
             .output()
-            .ok()
-            .and_then(|output| String::from_utf8(output.stdout).ok())
-            .unwrap_or_default()
-            .split_whitespace()
-            .map(|iface| PathBuf::from("/sys/class/net/").join(iface))
-            .map(|iface| iface.join("statistics/"))
-            .map(|iface| (iface.join("rx_bytes"), iface.join("tx_bytes")))
-            .filter(|(p1, p2)| p1.exists() && p2.exists())
-            .map(|(p1, p2)| (File::open(p1), File::open(p2)))
-            .filter_map(|(f1, f2)| Some((f1.ok()?, f2.ok()?)))
-            .collect()
+        else {
+            return;
+        };
+
+        let Ok(ifs) = std::str::from_utf8(&out.stdout) else {
+            return;
+        };
+
+        let mut ifs = ifs.lines().filter(|iface| !iface.is_empty());
+        let paths = core::iter::from_fn(|| {
+            let iface = ifs.next()?;
+            let mut string = heapless::String::<256>::new();
+            _ = string.push_str("/sys/class/net/");
+            _ = string.push_str(iface);
+            _ = string.push_str("/statistics/");
+            let mut rx = string.clone();
+            _ = rx.push_str("rx_bytes");
+            _ = string.push_str("tx_bytes");
+
+            Some((rx, string))
+        });
+
+        for (rx, tx) in paths {
+            f(Path::new(&rx[..]), Path::new(&tx[..]));
+        }
     }
 }
 

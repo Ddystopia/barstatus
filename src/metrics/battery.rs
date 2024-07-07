@@ -1,14 +1,9 @@
-use crate::Metric;
-use std::fs::File;
-use std::io::{prelude::*, BufReader};
-use std::time::Duration;
+use std::{
+    fmt::{Display, Formatter},
+    time::Duration,
+};
 
-fn read_line_from_path(path: &str) -> Result<String, std::io::Error> {
-    let file = File::open(path)?;
-    let mut buf_reader = BufReader::new(file);
-    let mut result = String::new();
-    buf_reader.read_line(&mut result).map(|_| result)
-}
+use crate::{read_line::read_line_from_path, Metric};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BatteryMetric {
@@ -20,12 +15,26 @@ impl BatteryMetric {
     pub fn new(threshold: u8) -> Self {
         Self { threshold }
     }
+
+    fn emoji(&self) -> &'static str {
+        match read_line_from_path::<24>("/sys/class/power_supply/BAT0/status") {
+            Ok(status) if status.trim() == "Charging" => "🔌🔼",
+            Ok(status) if status.trim() == "Discharging" => "🔋🔽",
+            _ => "🔋",
+        }
+    }
+
+    fn percentage(&self) -> Option<u8> {
+        let p = read_line_from_path::<24>("/sys/class/power_supply/BAT0/capacity").ok()?;
+        p.trim().parse::<u8>().ok()
+    }
 }
 
 impl Metric for BatteryMetric {
-    fn get_timeout(&self) -> Duration {
+    fn timeout(&self) -> Duration {
         Duration::ZERO
     }
+}
 
     fn get_value(&self) -> Option<String> {
         let percentage = read_line_from_path("/sys/class/power_supply/BAT0/capacity").ok()?;
