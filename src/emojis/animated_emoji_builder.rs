@@ -1,16 +1,16 @@
 use super::AnimatedEmoji;
-use std::num::NonZeroU32;
 
 // The states to represent whether each field is set
-pub struct MaxFrequencySet(NonZeroU32);
+pub struct MaxFrequencySet(f64);
 pub struct MaxFrequencyNotSet;
 pub struct FramesSet<'a>(&'a [char]);
 pub struct FramesNotSet;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct AnimatedEmojiBuilder<MaxFrequencyState = MaxFrequencyNotSet, FramesState = FramesNotSet>
 {
     max_frequency: MaxFrequencyState,
+    min_frequency: f64,
     frames: FramesState,
 }
 
@@ -19,6 +19,7 @@ impl Default for AnimatedEmojiBuilder<MaxFrequencyNotSet, FramesNotSet> {
         Self {
             max_frequency: MaxFrequencyNotSet,
             frames: FramesNotSet,
+            min_frequency: 0.,
         }
     }
 }
@@ -36,12 +37,14 @@ impl<'a, FA, FB> AnimatedEmojiBuilder<FA, FB> {
     ///
     /// # Invariants
     ///
-    /// * The `max_frequency` must be a positive integer. If it is not, this method will panic.
+    /// * The `max_frequency` must be positive. If it is not, this method will panic.
     ///
     #[inline]
-    pub fn max_frequency(self, max_frequency: NonZeroU32) -> AnimatedEmojiBuilder<MaxFrequencySet, FB> {
+    pub fn max_frequency(self, max_frequency: f64) -> AnimatedEmojiBuilder<MaxFrequencySet, FB> {
+        assert!(max_frequency > 0., "The max frequency must be positive");
         AnimatedEmojiBuilder {
             max_frequency: MaxFrequencySet(max_frequency),
+            min_frequency: self.min_frequency,
             frames: self.frames,
         }
     }
@@ -65,8 +68,15 @@ impl<'a, FA, FB> AnimatedEmojiBuilder<FA, FB> {
         assert!(!frames.is_empty(), "The frames should not be empty");
         AnimatedEmojiBuilder {
             max_frequency: self.max_frequency,
+            min_frequency: self.min_frequency,
             frames: FramesSet(frames),
         }
+    }
+
+    #[inline]
+    pub fn min_frequency(mut self, min_frequency: f64) -> Self {
+        self.min_frequency = min_frequency;
+        self
     }
 }
 
@@ -74,7 +84,8 @@ impl<'a> AnimatedEmojiBuilder<MaxFrequencySet, FramesSet<'a>> {
     #[must_use]
     pub fn build(self) -> AnimatedEmoji<'a> {
         let max_frequency = self.max_frequency.0;
+        let min_frequency = self.min_frequency;
         let frames = self.frames.0;
-        AnimatedEmoji::new(max_frequency, None, frames)
+        AnimatedEmoji::new(max_frequency, min_frequency, None, frames)
     }
 }

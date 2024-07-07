@@ -1,9 +1,10 @@
 use super::animated_emoji_builder::{AnimatedEmojiBuilder, FramesNotSet, MaxFrequencyNotSet};
-use std::{time::{Duration, Instant}, num::NonZeroU32};
+use std::time::Instant;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct AnimatedEmoji<'a> {
-    max_frequency: NonZeroU32,
+    max_frequency: f64,
+    min_frequency: f64,
     frame: usize,
     previous_frame_update: Option<Instant>,
     frames: &'a [char],
@@ -11,12 +12,14 @@ pub struct AnimatedEmoji<'a> {
 
 impl<'a> AnimatedEmoji<'a> {
     pub(super) fn new(
-        max_frequency: NonZeroU32,
+        max_frequency: f64,
+        min_frequency: f64,
         previous_frame_update: Option<Instant>,
         frames: &'a [char],
     ) -> AnimatedEmoji<'a> {
         AnimatedEmoji {
             max_frequency,
+            min_frequency,
             frame: 0,
             previous_frame_update,
             frames,
@@ -30,8 +33,11 @@ impl<'a> AnimatedEmoji<'a> {
     /// # Panics
     /// if speed is not a value between 0 and 1
     pub fn next_frame(&mut self, speed: f64) -> char {
-        assert!((0.0..=1.0).contains(&speed), "Speed must be a value between 0 and 1");
-        let frequency = speed * self.max_frequency.get() as f64;
+        assert!(
+            (0.0..=1.0).contains(&speed),
+            "Speed must be a value between 0 and 1"
+        );
+        let frequency = self.min_frequency + speed * (self.max_frequency - self.min_frequency);
         let fps = self.frames.len() as f64 * frequency;
         let period_per_frame = Duration::from_millis((1000.0 / fps) as u64);
 
