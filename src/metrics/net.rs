@@ -57,26 +57,11 @@ impl NetMetric {
         }
     }
 
-    fn numfmt(number: u64) -> String {
-        let mut pow = 0;
-        let mut rem: u64 = 0;
-        let mut number: u64 = number;
-        while number > 1024 && pow < POWERS.len() - 1 {
-            rem = number % 1024 * 100 / 1024;
-            number /= 1024;
-            pow += 1;
-        }
-        let power = POWERS[pow];
-
-        if rem > 0 && number < 1000 {
-            format!("{number}.{rem}{power}")
-        } else {
-            format!("{number}{power}")
-        }
-    }
-
-    fn get_zipped_xfiles() -> Vec<(File, File)> {
-        Command::new("sh")
+    fn for_zipped_xfiles<F>(mut f: F)
+    where
+        F: for<'a> FnMut(&'a Path, &'a Path),
+    {
+        let Ok(out) = Command::new("sh")
             .arg("-c")
             .arg("ip addr | awk '/state UP/ {print $2}' | sed 's/.$//'")
             .output()
@@ -120,10 +105,19 @@ impl Metric for NetMetric {
             return;
         }
 
-        let (rx_bytes, tx_bytes) = Self::get_zipped_xfiles()
-            .into_iter()
-            .filter_map(|(rx, tx)| Some((parse_xfile(rx)?, parse_xfile(tx)?)))
-            .fold((0, 0), |(rx, tx), (r, t)| (rx + r, tx + t));
+        let mut rx_bytes = 0;
+        let mut tx_bytes = 0;
+
+        Self::for_zipped_xfiles(|rx, tx| {
+            let rx = read_line_from_path::<24>(rx);
+            let tx = read_line_from_path::<24>(tx);
+            let rx = rx.map(|rx| rx.parse::<u64>());
+            let tx = tx.map(|tx| tx.parse::<u64>());
+            if let (Ok(Ok(rx)), Ok(Ok(tx))) = (rx, tx) {
+                rx_bytes += rx;
+                tx_bytes += tx;
+            }
+        });
 
         let now = Instant::now();
         let delta = delta.as_secs();
