@@ -1,23 +1,38 @@
-use crate::emojis::AnimatedEmoji;
-use crate::Metric;
-use std::cell::RefCell;
-use std::fs::File;
-use std::io::{prelude::*, BufReader};
-use std::num::NonZeroU32;
-use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
-use std::sync::Arc;
-use std::thread::{self, JoinHandle};
-use std::time::Duration;
-
-const SLEEPING_THRESHOLD_PERCENTAGE: f64 = 0.1;
-const SLEEPING_CAT: char = '\u{e000}';
-const MAX_FREQUENCY: NonZeroU32 = match NonZeroU32::new(5) {
-    Some(n) => n,
-    None => panic!("MAX_FREQUENCY must be greater than 0"),
+use std::{
+    cell::RefCell,
+    fmt::Display,
+    sync::{
+        atomic::{AtomicBool, AtomicU8, Ordering},
+        Arc,
+    },
+    thread::{self, JoinHandle},
+    time::Duration,
 };
-const RUNNING_CAT_FRAME_COUNT: usize = 5;
-const RUNNING_CAT: [char; RUNNING_CAT_FRAME_COUNT] =
-    ['\u{e001}', '\u{e002}', '\u{e003}', '\u{e004}', '\u{e005}'];
+
+use crate::{emojis::AnimatedEmoji, read_line::read_line_from_path, Metric};
+
+const fn range_chars<const N: usize>(base: char) -> [char; N] {
+    let mut r = ['0'; N];
+    let mut i = 0;
+    while i < N {
+        r[i] = match core::char::from_u32(base as u32 + i as u32) {
+            Some(c) => c,
+            None => panic!(),
+        };
+        i += 1;
+    }
+    r
+}
+const SLEEPING_THRESHOLD_PERCENTAGE: f64 = 0.1;
+const SLEEPING_CAT_OLD: [char; 15] = range_chars('\u{e000}');
+#[allow(dead_code)]
+const RUNNING_CAT_OLD: [char; 5] = range_chars('\u{e100}');
+#[allow(dead_code)]
+const SLEEPING_CAT_NEW: [char; 15] = range_chars('\u{e200}');
+const RUNNING_CAT_NEW: [char; 16] = range_chars('\u{e300}');
+
+const MAX_FREQUENCY: f64 = 7.6;
+const MIN_FREQUENCY: f64 = 0.5;
 
 #[derive(Debug)]
 pub struct CpuMetric {
@@ -40,14 +55,16 @@ impl CpuMetric {
             timeout,
             running_cat_emoji: RefCell::new(
                 AnimatedEmoji::builder()
-                    .frames(RUNNING_CAT.as_slice())
+                    .frames(RUNNING_CAT_NEW.as_slice())
+                    .min_frequency(MIN_FREQUENCY)
                     .max_frequency(MAX_FREQUENCY)
                     .build(),
             ),
             sleeping_cat_emoji: RefCell::new(
                 AnimatedEmoji::builder()
-                    .frames([SLEEPING_CAT].as_slice())
-                    .max_frequency(MAX_FREQUENCY)
+                    .frames(SLEEPING_CAT_OLD.as_slice())
+                    .min_frequency(0.2)
+                    .max_frequency(0.9)
                     .build(),
             ),
             handle: Some(thread::spawn(move || {
@@ -58,12 +75,15 @@ impl CpuMetric {
 
     fn get_emoji(&self) -> char {
         let cpu_usage = self.cpu_usage.load(Ordering::Relaxed) as f64 / 100.0;
+
         if cpu_usage < SLEEPING_THRESHOLD_PERCENTAGE {
+            let speed = cpu_usage / SLEEPING_THRESHOLD_PERCENTAGE;
             self.running_cat_emoji.borrow_mut().reset();
-            self.sleeping_cat_emoji.borrow_mut().next_frame(cpu_usage)
+            self.sleeping_cat_emoji.borrow_mut().next_frame(speed)
         } else {
+            let speed = (cpu_usage - SLEEPING_THRESHOLD_PERCENTAGE) / (1. - SLEEPING_THRESHOLD_PERCENTAGE);
             self.sleeping_cat_emoji.borrow_mut().reset();
-            self.running_cat_emoji.borrow_mut().next_frame(cpu_usage)
+            self.running_cat_emoji.borrow_mut().next_frame(speed)
         }
     }
 
