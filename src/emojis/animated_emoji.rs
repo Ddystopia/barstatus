@@ -39,14 +39,15 @@ impl<'a> AnimatedEmoji<'a> {
         );
         let frequency = self.min_frequency + speed * (self.max_frequency - self.min_frequency);
         let fps = self.frames.len() as f64 * frequency;
-        let period_per_frame = Duration::from_millis((1000.0 / fps) as u64);
+        let elapsed = self.previous_frame_update.map(|it| it.elapsed());
 
-        let previous_update = self.previous_frame_update.map(|it| it.elapsed());
+        let frames_to_skip = elapsed.map_or(1., |it| it.as_secs_f64() * fps);
+        let frames_to_skip = frames_to_skip.floor() as usize;
 
-        if previous_update.map_or(true, |it| it > period_per_frame) {
-            self.previous_frame_update = Some(Instant::now());
-            self.frame += 1;
+        if frames_to_skip > 0 {
+            self.frame += frames_to_skip;
             self.frame %= self.frames.len();
+            self.previous_frame_update = Some(Instant::now());
         }
 
         self.frames[self.frame]
