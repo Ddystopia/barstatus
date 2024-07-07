@@ -1,6 +1,6 @@
 use crate::Metric;
 use chrono::offset::Local;
-use std::time::Duration;
+use std::{fmt::Formatter, fmt::Display, time::Duration};
 
 #[derive(Default, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DateMetric {}
@@ -13,15 +13,14 @@ impl DateMetric {
 }
 
 impl Metric for DateMetric {
-    fn get_timeout(&self) -> Duration {
+    fn timeout(&self) -> Duration {
         Duration::ZERO
     }
-    fn get_value(&self) -> Option<String> {
-        Some(
-            Local::now()
-                .naive_local()
-                .format("%a, %b %d %X")
-                .to_string(),
-        )
+}
+
+impl Display for DateMetric {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let fmt = Local::now().naive_local().format("%a, %b %d %X");
+        write!(f, "{fmt}")
     }
 }

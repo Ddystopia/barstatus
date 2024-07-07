@@ -1,4 +1,5 @@
 use crate::Metric;
+use std::fmt::Display;
 use std::process::Command;
 use std::time::Duration;
 
@@ -14,17 +15,23 @@ impl MemMetric {
 }
 
 impl Metric for MemMetric {
-    fn get_timeout(&self) -> Duration {
+    fn timeout(&self) -> Duration {
         Duration::ZERO
     }
-    fn get_value(&self) -> Option<String> {
+}
+
+impl Display for MemMetric {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // TODO: rewrite from shell api
+
         let out = Command::new("sh")
             .arg("-c")
             .arg("free -h | awk '/Mem/ {printf \"%s/%s\n\", $3, $2}'")
             .output()
-            .ok()?;
+            .map_err(|_| std::fmt::Error)?;
 
-        Some(format!("📝 {}", String::from_utf8_lossy(&out.stdout)))
+        let out = std::str::from_utf8(&out.stdout).map_err(|_| std::fmt::Error)?;
+
+        write!(f, "📝 {out}")
     }
 }

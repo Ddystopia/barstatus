@@ -1,8 +1,11 @@
 use crate::Metric;
-use std::process::Command;
-use std::time::Duration;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+use std::cell::{Cell, RefCell};
+use std::fmt::Display;
+use std::process::Command;
+use std::time::{Duration, Instant};
+
+#[derive(Debug)]
 pub struct XkbLayoutMetric {
     timeout: Duration,
 }
@@ -14,12 +17,7 @@ impl XkbLayoutMetric {
     }
 }
 
-impl Metric for XkbLayoutMetric {
-    fn get_timeout(&self) -> Duration {
-        self.timeout
-    }
-    fn get_value(&self) -> Option<String> {
-        // TODO: rewrite from shell api
+    fn update(&self) -> Result<(), std::fmt::Error> {
         let out = Command::new("sh")
             .arg("-c")
             .arg("xkb-switch")
@@ -28,6 +26,11 @@ impl Metric for XkbLayoutMetric {
 
         let loc = String::from_utf8_lossy(&out.stdout);
 
-        Some(format!("🌍 {loc}", loc = &loc.strip_suffix('\n')?))
+impl Display for XkbLayoutMetric {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.last_updated_at.get().elapsed() > self.timeout {
+            self.update()?;
+        }
+        write!(f, "🌍 {loc}", loc = self.locale.borrow())
     }
 }

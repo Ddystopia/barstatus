@@ -1,4 +1,5 @@
 use crate::Metric;
+use std::fmt::Display;
 use std::process::Command;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -57,25 +58,25 @@ impl UpdatesMetric {
 }
 
 impl Metric for UpdatesMetric {
-    fn get_timeout(&self) -> Duration {
+    fn timeout(&self) -> Duration {
         self.timeout
     }
+}
 
-    fn get_value(&self) -> Option<String> {
+impl Display for UpdatesMetric {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let updates_count = self.updates_count.load(Ordering::Relaxed);
         let system_update = self.system_update.load(Ordering::Relaxed);
 
         if updates_count == 0 {
-            return None;
+            return Ok(());
         }
 
-        let value = if system_update {
-            format!("🔁! {updates_count}")
+        if system_update {
+            write!(f, "🔁! {}", updates_count)
         } else {
-            format!("🔁 {updates_count}")
-        };
-
-        Some(value)
+            write!(f, "🔁 {}", updates_count)
+        }
     }
 }
 

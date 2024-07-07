@@ -30,7 +30,7 @@ pub mod metrics {
     pub use xkblayout::XkbLayoutMetric;
 }
 
-pub trait Metric {
+pub trait Metric: Display + std::fmt::Debug {
     fn update(&mut self) {}
     fn get_timeout(&self) -> Duration;
     fn get_value(&self) -> Option<String>;

@@ -1,7 +1,5 @@
-use crate::Metric;
-use std::ops::Not;
+use std::fmt::Display;
 use std::process::Command;
-use std::time::Duration;
 
 pub struct BluetoothChargeMetric {}
 
@@ -13,23 +11,21 @@ impl BluetoothChargeMetric {
     }
 }
 
-impl Metric for BluetoothChargeMetric {
-    fn get_timeout(&self) -> Duration {
-        Duration::ZERO
-    }
-    fn get_value(&self) -> Option<String> {
+impl Display for BluetoothChargeMetric {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // TODO: rewrite from shell api
         let out = Command::new("sh")
             .arg("-c")
             .arg("bluetoothctl info | grep 'Battery Percentage' | sed 's/.*(\\([^)]*\\)).*/\\1/g'")
             .output()
-            .ok()?;
+            .map_err(|_| std::fmt::Error)?;
 
-        let percentage = String::from_utf8_lossy(&out.stdout).to_string();
+        let percentage = std::str::from_utf8(&out.stdout).map_err(|_| std::fmt::Error)?;
 
-        percentage
-            .is_empty()
-            .not()
-            .then(|| format!("🎧⚡️ {percentage}%"))
+        if !percentage.is_empty() {
+            write!(f, "🎧⚡️ {percentage}%")?;
+        }
+
+        Ok(())
     }
 }

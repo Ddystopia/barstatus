@@ -111,15 +111,16 @@ impl CpuMetric {
 }
 
 impl Metric for CpuMetric {
-    fn get_timeout(&self) -> Duration {
+    fn timeout(&self) -> Duration {
         self.timeout
     }
-    fn get_value(&self) -> Option<String> {
-        Some(format!(
-            "{emoji} {cpu_usage: >2}% cpu",
-            emoji = self.get_emoji(),
-            cpu_usage = self.cpu_usage.load(Ordering::Relaxed),
-        ))
+}
+
+impl Display for CpuMetric {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let emoji = self.get_emoji();
+        let cpu_usage = self.cpu_usage.load(Ordering::Relaxed);
+        write!(f, "{emoji} {cpu_usage: >2}% cpu")
     }
 }
 

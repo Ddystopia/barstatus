@@ -36,18 +36,15 @@ impl Metric for BatteryMetric {
     }
 }
 
-    fn get_value(&self) -> Option<String> {
-        let percentage = read_line_from_path("/sys/class/power_supply/BAT0/capacity").ok()?;
+impl Display for BatteryMetric {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let emoji = self.emoji();
+        let percentage = self.percentage().ok_or(std::fmt::Error)?;
 
-        let emoji = match read_line_from_path("/sys/class/power_supply/BAT0/status") {
-            Ok(status) if status.trim() == "Charging" => "🔌🔼",
-            Ok(status) if status.trim() == "Discharging" => "🔋🔽",
-            _ => "🔋",
-        };
+        if percentage < self.threshold {
+            write!(f, "{emoji} {percentage}%")?;
+        }
 
-        let percentage = percentage.trim().parse::<u8>().ok()?;
-        let less_than_threshold = percentage < self.threshold;
-
-        less_than_threshold.then(|| format!("{emoji} {percentage}%"))
+        Ok(())
     }
 }

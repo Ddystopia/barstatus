@@ -109,7 +109,7 @@ impl NetMetric {
 }
 
 impl Metric for NetMetric {
-    fn get_timeout(&self) -> Duration {
+    fn timeout(&self) -> Duration {
         self.timeout
     }
 
@@ -142,19 +142,15 @@ impl Metric for NetMetric {
         self.tx_bytes = tx_bytes;
         self.previous_update = now;
     }
-
-    fn get_value(&self) -> Option<String> {
-        Some(format!(
-            "🔽{download}/s 🔼{upload}/s",
-            download = Self::numfmt(self.download),
-            upload = Self::numfmt(self.upload)
-        ))
-    }
 }
 
-fn parse_xfile(file: File) -> Option<u64> {
-    let mut reader = BufReader::new(file);
-    let mut line = String::new();
-    reader.read_line(&mut line).ok()?;
-    line.trim().parse().ok()
+impl Display for NetMetric {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "🔽{download}/s 🔼{upload}/s",
+            download = NumFmt(self.download),
+            upload = NumFmt(self.upload),
+        )
+    }
 }
