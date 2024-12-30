@@ -7,7 +7,10 @@ use std::{
 
 use barstatus::{
     generic_for_each,
-    metrics::{BatteryMetric, CpuMetric, DateMetric, NetMetric, UpdatesMetric, XkbLayoutMetric},
+    metrics::{
+        BatteryMetric, BluetoothChargeMetric, CpuMetric, DateMetric, NetMetric, UpdatesMetric,
+        XkbLayoutMetric,
+    },
     Metric,
 };
 use frunk::hlist;
@@ -21,7 +24,7 @@ fn main() {
     let mut metrics = hlist![
         NetMetric::new(Duration::from_secs(2)),
         CpuMetric::new(Duration::from_millis(600)),
-        // BluetoothChargeMetric::new(),
+        BluetoothChargeMetric::new(),
         XkbLayoutMetric::new(Duration::from_millis(300)), // fixme: slow
         UpdatesMetric::new(Duration::from_secs(60)),
         BatteryMetric::new(80),
@@ -32,7 +35,7 @@ fn main() {
     loop {
         // eprintln!("{:?} vs {LOOP_TIME:?}", last.elapsed());
         // last = std::time::Instant::now();
-        let loop_start = std::time::Instant::now(); 
+        let loop_start = std::time::Instant::now();
         let mut buf: [u8; 1024] = [0; 1024];
         let mut writer = Cursor::new(&mut buf[..]);
 
@@ -74,7 +77,8 @@ fn main() {
     }
 }
 
-fn set_on_bar(val: &str) -> Result<ExitStatus, std::io::Error> { // fixme: slow
+fn set_on_bar(val: &str) -> Result<ExitStatus, std::io::Error> {
+    // fixme: slow
     Command::new("xsetroot")
         .args(["-name", val])
         .spawn()?
