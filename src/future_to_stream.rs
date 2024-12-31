@@ -1,42 +1,35 @@
 use std::{
-    convert::Infallible,
     future::Future,
+    marker::PhantomData,
     pin::Pin,
     task::{Context, Poll},
 };
 
-use tokio_stream::StreamExt;
+use tokio_stream::Stream;
 
 pin_project_lite::pin_project! {
-    struct FutureToStream<F> {
+    pub struct FutureToStream<F, T> {
         #[pin]
         pinned: F,
+        _marker: PhantomData<T>,
     }
 }
 
-impl<F> FutureToStream<F> {
-    fn new(future: F) -> Self {
-        Self { pinned: future }
+impl<F, T> FutureToStream<F, T> {
+    pub fn new(pinned: F) -> Self {
+        Self {
+            pinned,
+            _marker: PhantomData,
+        }
     }
 }
 
-pub trait AnyStream {
-    fn to_any_stream<T>(self) -> impl tokio_stream::Stream<Item = T>;
-}
+impl<F: Future<Output = !>, T> Stream for FutureToStream<F, T> {
+    type Item = T;
 
-impl<F: Future<Output = Infallible>> AnyStream for F {
-    fn to_any_stream<T>(self) -> impl tokio_stream::Stream<Item = T> {
-        FutureToStream::new(self).map(|v| match v {})
-    }
-}
-
-impl<F: Future<Output = Infallible>> tokio_stream::Stream for FutureToStream<F> {
-    type Item = Infallible;
-
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<T>> {
         match Future::poll(self.project().pinned, cx) {
-            Poll::Ready(v) => match v {},
-            Poll::Pending => Poll::Pending,
+            Poll::Pending => Poll::<Option<T>>::Pending,
         }
     }
 }
