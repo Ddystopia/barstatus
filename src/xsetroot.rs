@@ -1,29 +1,45 @@
 use std::ffi::CStr;
 
+#[derive(Debug)]
+pub enum Error {
+    #[cfg(feature = "xsetroot_dyn")]
+    XOpendisplayFailed,
+    #[cfg(feature = "xsetroot_dyn")]
+    FailedToOpenXlib(x11_dl::error::OpenError),
+    #[cfg(not(feature = "xsetroot_dyn"))]
+    NotUtf8(std::str::Utf8Error),
+    #[cfg(not(feature = "xsetroot_dyn"))]
+    Io(std::io::Error),
+    #[cfg(not(feature = "xsetroot_dyn"))]
+    XSetRootCode(i32),
+    #[cfg(not(feature = "xsetroot_dyn"))]
+    XSetRootSignal,
+}
+
 #[cfg(not(feature = "xsetroot_dyn"))]
-pub fn set_on_bar(val: &CStr) -> Result<(), std::io::Error> {
-    let val = val.to_str().unwrap();
+pub fn set_on_bar(val: &CStr) -> Result<(), Error> {
+    let val = val.to_str()?;
     let status = std::process::Command::new("xsetroot")
         .args(["-name", val])
         .spawn()?
         .wait()?;
 
     match status.code() {
-        Some(0) => Ok(status),
-        Some(code) => anyhow::bail!("xsetroot exited with code {code}"),
-        None => anyhow::bail!("xsetroot exited by signal"),
+        Some(0) => Ok(()),
+        Some(code) => Err(Error::XSetRootCode(code)),
+        None => Err(Error::XSetRootSignal),
     }
 }
 
 #[cfg(feature = "xsetroot_dyn")]
-pub fn set_on_bar(val: &CStr) -> anyhow::Result<()> {
+pub fn set_on_bar(val: &CStr) -> Result<(), Error> {
     // SAFETY: This is more or less direct rewrite from `xsetroot.c`
     unsafe {
-        let xlib = x11_dl::xlib::Xlib::open().unwrap();
+        let xlib = x11_dl::xlib::Xlib::open()?;
 
         let dpy = (xlib.XOpenDisplay)(std::ptr::null());
         if dpy.is_null() {
-            anyhow::bail!("XOpenDisplay failed");
+            return Err(Error::XOpendisplayFailed);
         }
         let screen = (xlib.XDefaultScreen)(dpy);
         let root = (xlib.XRootWindow)(dpy, screen);
@@ -34,3 +50,45 @@ pub fn set_on_bar(val: &CStr) -> anyhow::Result<()> {
 
     Ok(())
 }
+
+#[cfg(not(feature = "xsetroot_dyn"))]
+impl From<std::io::Error> for Error {
+    fn from(err: std::io::Error) -> Self {
+        Error::Io(err)
+    }
+}
+
+#[cfg(not(feature = "xsetroot_dyn"))]
+impl From<std::str::Utf8Error> for Error {
+    fn from(err: std::str::Utf8Error) -> Self {
+        Error::NotUtf8(err)
+    }
+}
+
+#[cfg(feature = "xsetroot_dyn")]
+impl From<x11_dl::error::OpenError> for Error {
+    fn from(value: x11_dl::error::OpenError) -> Self {
+        Self::FailedToOpenXlib(value)
+    }
+}
+
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            #[cfg(feature = "xsetroot_dyn")]
+            Self::XOpendisplayFailed => write!(f, "Failed to open display"),
+            #[cfg(feature = "xsetroot_dyn")]
+            Self::FailedToOpenXlib(err) => write!(f, "Failed to open xlib: {err}"),
+            #[cfg(not(feature = "xsetroot_dyn"))]
+            Self::Io(err) => write!(f, "IO error: {err}"),
+            #[cfg(not(feature = "xsetroot_dyn"))]
+            Self::XSetRootCode(code) => write!(f, "xsetroot exited with code: {code}"),
+            #[cfg(not(feature = "xsetroot_dyn"))]
+            Self::XSetRootSignal => write!(f, "xsetroot was killed by a signal"),
+            #[cfg(not(feature = "xsetroot_dyn"))]
+            Self::NotUtf8(err) => write!(f, "Not UTF-8: {err}")
+        }
+    }
+}
+
+impl std::error::Error for Error {}
