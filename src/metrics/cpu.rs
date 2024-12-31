@@ -16,7 +16,7 @@ mod emojis {
         while i < N {
             r[i] = match core::char::from_u32(base as u32 + i as u32) {
                 Some(c) => c,
-                None => panic!(),
+                None => panic!(), // compile time
             };
             i += 1;
         }
