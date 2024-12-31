@@ -37,10 +37,10 @@ pub trait Metric: Display + std::fmt::Debug {
 
 #[macro_export]
 macro_rules! generic_for_each {
-    ($list:ident, $trait:ident $( + $trait_rest:ident )*, |$x:ident| $body:expr) => {
-        generic_for_each!($list, $trait $( + $trait_rest)*, (), |$x, _tmp: ()| $body);
+    ($list:ident, |$x:ident: &mut impl $trait:ident $( + $trait_rest:ident )*| $body:expr) => {
+        generic_for_each!($list, (), |$x: &mut impl $trait $( + $trait_rest)*, _tmp: ()| $body);
     };
-    ($list:ident, $trait:ident $( + $trait_rest:ident )*, $deps:expr, |$x:ident, $deps_var:ident:$dep_ty:ty| $body:expr) => {
+    ($list:ident, $deps:expr, |$x:ident: &mut impl $trait:ident $( + $trait_rest:ident )*, $deps_var:ident:$dep_ty:ty| $body:expr) => {
         {
             use frunk::hlist::{HCons, HNil};
             #[allow(non_camel_case_types)]

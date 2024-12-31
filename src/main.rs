@@ -41,9 +41,9 @@ fn main() {
 
         generic_for_each!(
             metrics,
-            Metric,
-            &mut writer, //
-            |metric, writer: &mut Cursor<&mut [u8]>| {
+            &mut writer,
+            |metric: &mut impl Metric, writer: &mut Cursor<&mut [u8]>| {
+                println!("{:?}", metric);
                 let prev_pos = writer.position();
 
                 if write!(writer, "{metric}").is_err() {
@@ -71,7 +71,7 @@ fn main() {
             break;
         };
 
-        generic_for_each!(metrics, Metric, |metric| metric.update());
+        generic_for_each!(metrics, |metric: &mut impl Metric| metric.update());
 
         thread::sleep(LOOP_TIME.saturating_sub(loop_start.elapsed()));
     }
