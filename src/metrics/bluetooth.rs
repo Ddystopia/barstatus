@@ -1,19 +1,11 @@
 use std::cell::Cell;
 use std::fmt::Display;
-use std::process::Command;
-use std::time::Duration;
+use tokio::process::Command;
 
-use crate::Metric;
+use crate::{CommonError, Metric};
 
 #[derive(Debug, Default)]
 pub struct BluetoothChargeMetric(Cell<Option<u8>>);
-
-impl BluetoothChargeMetric {
-    #[must_use]
-    pub fn new() -> Self {
-        Default::default()
-    }
-}
 
 impl Metric for BluetoothChargeMetric {
     fn name(&self) -> &'static str {
@@ -24,22 +16,21 @@ impl Metric for BluetoothChargeMetric {
         self
     }
 
-    fn start(&self) -> impl std::future::Future<Output = !> + '_ {
-        async {
-            loop {
-                let cmd = "bluetoothctl info | grep 'Battery Percentage' | sed 's/.*(\\([^)]*\\)).*/\\1/g'";
-                let percentage = try {
-                    // TODO: rewrite from shell api
-                    let out = Command::new("sh").arg("-c").arg(cmd).output().ok()?;
-                    let percentage = std::str::from_utf8(&out.stdout).ok()?;
-                    percentage.trim().parse::<u8>().ok()?
-                };
+    async fn update(&self) -> Result<(), CommonError> {
+        let cmd = "bluetoothctl info | grep 'Battery Percentage' | sed 's/.*(\\([^)]*\\)).*/\\1/g'";
+        let result: Result<(), _> = try {
+            // TODO: rewrite from shell api
+            let out = Command::new("sh").arg("-c").arg(cmd).output().await?;
+            let percentage = std::str::from_utf8(&out.stdout)?;
+            let percentage = percentage.trim().parse::<u8>()?;
+            self.0.set(Some(percentage));
+        };
 
-                self.0.set(percentage);
-
-                tokio::time::sleep(Duration::from_secs(5)).await;
-            }
+        if result.is_err() {
+            self.0.set(None);
         }
+
+        result
     }
 }
 

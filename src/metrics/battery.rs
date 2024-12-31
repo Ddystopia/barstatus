@@ -1,10 +1,9 @@
 use std::{
     cell::Cell,
     fmt::{Display, Formatter},
-    time::Duration,
 };
 
-use crate::{read_line::read_line_from_path, Metric};
+use crate::{read_line::read_line_from_path, CommonError, Metric};
 
 #[derive(Debug, Clone)]
 pub struct BatteryMetric {
@@ -13,7 +12,7 @@ pub struct BatteryMetric {
 }
 
 #[derive(Default, Debug, Clone, Copy)]
-struct DisplayBattery(&'static str, Option<u8>, u8);
+struct DisplayBattery(Option<&'static str>, Option<u8>, u8);
 
 impl BatteryMetric {
     #[must_use]
@@ -24,18 +23,20 @@ impl BatteryMetric {
         }
     }
 
-    async fn emoji(&self) -> &'static str {
-        match read_line_from_path::<24>("/sys/class/power_supply/BAT0/status").await {
-            Ok(status) if status.trim() == "Charging" => "🔌🔼",
-            Ok(status) if status.trim() == "Discharging" => "🔋🔽",
-            _ => "🔋",
-        }
+    async fn emoji(&self) -> Result<&'static str, CommonError> {
+        Ok(
+            match read_line_from_path::<24>("/sys/class/power_supply/BAT0/status").await? {
+                status if status.trim() == "Charging" => "🔌🔼",
+                status if status.trim() == "Discharging" => "🔋🔽",
+                _ => "🔋",
+            },
+        )
     }
 
-    async fn percentage(&self) -> Option<u8> {
+    async fn percentage(&self) -> Result<u8, CommonError> {
         let percentage = read_line_from_path::<24>("/sys/class/power_supply/BAT0/capacity");
 
-        percentage.await.ok()?.trim().parse::<u8>().ok()
+        Ok(percentage.await?.trim().parse::<u8>()?)
     }
 }
 
@@ -48,16 +49,18 @@ impl Metric for BatteryMetric {
         self.display.get()
     }
 
-    fn start(&self) -> impl std::future::Future<Output = !> + '_ {
-        async {
-            loop {
-                let emoji = self.emoji().await;
-                let percentage = self.percentage().await;
-
-                self.display
-                    .set(DisplayBattery(emoji, percentage, self.threshold));
-
-                tokio::time::sleep(Duration::from_secs(1)).await;
+    async fn update(&self) -> Result<(), CommonError> {
+        match try {
+            self.display.set(DisplayBattery(
+                Some(self.emoji().await?),
+                Some(self.percentage().await?),
+                self.threshold,
+            ));
+        } {
+            Ok(()) => Ok(()),
+            Err(err) => {
+                self.display.set(DisplayBattery(None, None, self.threshold));
+                Err(err)
             }
         }
     }
@@ -65,8 +68,8 @@ impl Metric for BatteryMetric {
 
 impl Display for DisplayBattery {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let Self(emoji, percentage, threeshold) = self;
-        if let Some(percentage) = percentage {
+        let &Self(emoji, percentage, threeshold) = self;
+        if let Some((emoji, percentage)) = emoji.zip(percentage) {
             if percentage < threeshold {
                 write!(f, "{emoji} {percentage}%")?;
             }

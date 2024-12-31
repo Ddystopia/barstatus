@@ -1,24 +1,13 @@
 use crate::Metric;
 
-use std::{cell::Cell, fmt::Display, time::Duration};
+use std::{cell::Cell, fmt::Display};
 use tokio::process::Command;
 
 type Locale = heapless::String<32>;
 
 #[derive(Default)]
 pub struct XkbLayoutMetric {
-    timeout: Duration,
     locale: Cell<Option<Locale>>,
-}
-
-impl XkbLayoutMetric {
-    #[must_use]
-    pub fn new(timeout: Duration) -> Self {
-        Self {
-            timeout,
-            locale: Default::default(),
-        }
-    }
 }
 
 impl Metric for XkbLayoutMetric {
@@ -30,25 +19,24 @@ impl Metric for XkbLayoutMetric {
         self
     }
 
-    fn start(&self) -> impl std::future::Future<Output = !> + '_ {
-        async {
-            loop {
-                let loc: Option<Locale> = try {
-                    let out = Command::new("sh")
-                        .arg("-c")
-                        .arg("xkb-switch")
-                        .output()
-                        .await
-                        .ok()?;
+    async fn update(&self) -> Result<(), crate::CommonError> {
+        match try {
+            let out = Command::new("sh")
+                .arg("-c")
+                .arg("xkb-switch")
+                .output()
+                .await?;
 
-                    let loc = std::str::from_utf8(&out.stdout).ok()?;
+            let loc = std::str::from_utf8(&out.stdout)?;
 
-                    Locale::try_from(loc.strip_suffix('\n').unwrap_or(loc)).ok()?
-                };
-
-                self.locale.set(loc);
-
-                tokio::time::sleep(self.timeout).await;
+            let locale = Locale::try_from(loc.strip_suffix('\n').unwrap_or(loc));
+            self.locale
+                .set(Some(locale.map_err(|()| crate::CommonError::Capacity)?));
+        } {
+            Ok(()) => Ok(()),
+            Err(err) => {
+                self.locale.set(None);
+                Err(err)
             }
         }
     }

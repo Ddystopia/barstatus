@@ -20,6 +20,7 @@ x11-dl = { version = "2.21.0", optional = true }
 pin-project-lite = "0.2.15"
 tokio = { version = "1.42.0", features = ["fs", "io-util", "process", "rt", "time"] }
 tokio-stream = { version = "0.1.17", default-features = false, features = ["time"] }
+thiserror = { version = "2.0.9", default-features = false }
 
 [features]
 default = ["xsetroot_dyn"]
@@ -30,6 +31,7 @@ lto = true
 strip = "debuginfo"
 
 [lints.rust]
+refining_impl_trait_reachable = { level = "allow", priority = 2 }
 
 [lints.clippy]
 pedantic = { level = "warn", priority = 1 }
@@ -41,3 +43,4 @@ cast-sign-loss = { level = "allow", priority = 2 }
 default-trait-access = { level = "allow", priority = 2 }
 single-match-else = { level = "allow", priority = 2 }
 cast-lossless = { level = "allow", priority = 2 }
+default-constructed-unit-structs = { level = "allow", priority = 2 }

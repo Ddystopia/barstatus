@@ -7,18 +7,18 @@ use std::{
 
 use tokio::process::Command;
 
-use crate::{read_line::read_line_from_path, Metric};
+use crate::{read_line::read_line_from_path, CommonError, Metric};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct NetMetric(Duration, Cell<NetMetricInner>);
+#[derive(Default, Debug, Clone, PartialEq, Eq)]
+pub struct NetMetric(Cell<NetMetricInner>);
 
-#[derive(Copy, Debug, Clone, PartialEq, Eq)]
+#[derive(Default, Copy, Debug, Clone, PartialEq, Eq)]
 struct NetMetricInner {
     upload: u64,
     download: u64,
     rx_bytes: u64,
     tx_bytes: u64,
-    previous_update: Instant,
+    previous_update: Option<Instant>,
 }
 
 const POWERS: [&str; 6] = ["B", "KiB", "MiB", "GiB", "TiB", "PiB"];
@@ -46,38 +46,16 @@ impl Display for NumFmt {
 }
 
 impl NetMetric {
-    /// Creates a new `NetMetric` with the given timeout.
-    #[must_use]
-    pub fn new(timeout: Duration) -> Self {
-        Self(
-            timeout,
-            Cell::new(NetMetricInner {
-                upload: 0,
-                download: 0,
-                rx_bytes: 0,
-                tx_bytes: 0,
-                previous_update: Instant::now()
-                    .checked_sub(timeout)
-                    .unwrap_or(Instant::now()),
-            }),
-        )
-    }
-
-    async fn for_zipped_xfiles<F: async FnMut(&Path, &Path)>(mut f: F) {
-        let Ok(out) = Command::new("sh")
+    async fn for_zipped_xfiles<F: async FnMut(&Path, &Path)>(mut f: F) -> Result<(), CommonError> {
+        let out = Command::new("sh")
             .arg("-c")
             .arg("ip addr | awk '/state UP/ {print $2}' | sed 's/.$//'")
             .output()
-            .await
-        else {
-            return;
-        };
+            .await?;
 
-        let Ok(ifs) = std::str::from_utf8(&out.stdout) else {
-            return;
-        };
-
+        let ifs = std::str::from_utf8(&out.stdout)?;
         let mut ifs = ifs.lines().filter(|iface| !iface.is_empty());
+
         let paths = core::iter::from_fn(|| {
             let iface = ifs.next()?;
             let mut string = heapless::String::<256>::new();
@@ -94,17 +72,23 @@ impl NetMetric {
         for (rx, tx) in paths {
             f(Path::new(&rx[..]), Path::new(&tx[..])).await;
         }
+        Ok(())
     }
 }
 
-impl NetMetric {
-    async fn update(&self) {
-        let mut inner = self.1.get();
-        let delta = inner.previous_update.elapsed();
+impl Metric for NetMetric {
+    fn display(&self) -> impl Display {
+        self.0.get()
+    }
+    fn name(&self) -> &'static str {
+        "Net"
+    }
 
-        if delta < self.0 {
-            return;
-        }
+    async fn update(&self) -> Result<(), CommonError> {
+        let mut inner = self.0.get();
+        let delta = inner
+            .previous_update
+            .map_or(Duration::from_secs(0), |prev| prev.elapsed());
 
         let mut rx_bytes = 0;
         let mut tx_bytes = 0;
@@ -114,12 +98,20 @@ impl NetMetric {
             let tx = read_line_from_path::<24>(tx).await;
             let rx = rx.map(|rx| rx.parse::<u64>());
             let tx = tx.map(|tx| tx.parse::<u64>());
-            if let (Ok(Ok(rx)), Ok(Ok(tx))) = (rx, tx) {
-                rx_bytes += rx;
-                tx_bytes += tx;
+            match (rx, tx) {
+                (Ok(Ok(rx)), Ok(Ok(tx))) => {
+                    rx_bytes += rx;
+                    tx_bytes += tx;
+                }
+                (Ok(Err(err)), _) | (_, Ok(Err(err))) => {
+                    log::warn!("Error parsing rx/tx bytes: {err}");
+                }
+                (Err(err), _) | (_, Err(err)) => {
+                    log::warn!("Error reading rx/tx bytes: {err}");
+                }
             }
         })
-        .await;
+        .await?;
 
         let now = Instant::now();
         let delta = delta.as_secs();
@@ -136,27 +128,11 @@ impl NetMetric {
 
         inner.rx_bytes = rx_bytes;
         inner.tx_bytes = tx_bytes;
-        inner.previous_update = now;
+        inner.previous_update = Some(now);
 
-        self.1.set(inner);
-    }
-}
+        self.0.set(inner);
 
-impl Metric for NetMetric {
-    fn display(&self) -> impl Display {
-        self.1.get()
-    }
-    fn name(&self) -> &'static str {
-        "Net"
-    }
-
-    fn start(&self) -> impl std::future::Future<Output = !> + '_ {
-        async {
-            loop {
-                self.update().await;
-                tokio::time::sleep(self.0).await;
-            }
-        }
+        Ok(())
     }
 }
 

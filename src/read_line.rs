@@ -4,10 +4,13 @@ use heapless::String;
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
 
-#[derive(Debug)]
+#[derive(thiserror::Error, Debug)]
 pub enum ReadLineError {
-    Io(std::io::Error),
-    Utf8(std::str::Utf8Error),
+    #[error("IO error: {0}")]
+    Io(#[from] std::io::Error),
+    #[error("UTF-8 error: {0}")]
+    Utf8(#[from] std::str::Utf8Error),
+    #[error("Capacity error")]
     Capacity,
 }
 
@@ -40,25 +43,3 @@ pub async fn read_line_from_path<const N: usize>(
 
     Ok(string)
 }
-
-impl From<std::io::Error> for ReadLineError {
-    fn from(err: std::io::Error) -> Self {
-        Self::Io(err)
-    }
-}
-impl From<std::str::Utf8Error> for ReadLineError {
-    fn from(err: std::str::Utf8Error) -> Self {
-        Self::Utf8(err)
-    }
-}
-impl std::fmt::Display for ReadLineError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            Self::Io(err) => write!(f, "IO error: {err}"),
-            Self::Utf8(err) => write!(f, "UTF-8 error: {err}"),
-            Self::Capacity => write!(f, "Capacity error"),
-        }
-    }
-}
-
-impl std::error::Error for ReadLineError {}

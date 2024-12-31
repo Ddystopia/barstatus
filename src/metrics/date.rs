@@ -1,19 +1,9 @@
 use crate::Metric;
 use chrono::offset::Local;
-use std::{
-    fmt::{Display, Formatter},
-    future::{pending, Future},
-};
+use std::fmt::{Display, Formatter};
 
 #[derive(Default, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DateMetric;
-
-impl DateMetric {
-    #[must_use]
-    pub fn new() -> Self {
-        Self
-    }
-}
 
 impl Metric for DateMetric {
     fn name(&self) -> &'static str {
@@ -24,8 +14,8 @@ impl Metric for DateMetric {
         self
     }
 
-    fn start(&self) -> impl Future<Output = !> + '_ {
-        pending()
+    async fn update(&self) -> Result<(), !> {
+        Ok(())
     }
 }
 

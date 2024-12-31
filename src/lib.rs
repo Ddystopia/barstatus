@@ -3,7 +3,7 @@
 #![feature(never_type)]
 #![forbid(unsafe_code)]
 
-use std::{fmt::Display, future::Future};
+use std::{error::Error, fmt::Display, future::Future};
 
 pub(crate) mod read_line;
 
@@ -24,7 +24,7 @@ pub mod metrics {
     pub mod net;
     pub mod update;
     pub mod xkblayout;
-    //
+    // //
     pub use battery::BatteryMetric;
     pub use bluetooth::BluetoothChargeMetric;
     pub use cpu::CpuMetric;
@@ -35,10 +35,26 @@ pub mod metrics {
     pub use xkblayout::XkbLayoutMetric;
 }
 
+#[derive(thiserror::Error, Debug)]
+pub enum CommonError {
+    #[error("IO error: {0}")]
+    Io(#[from] std::io::Error),
+    #[error("UTF-8 error: {0}")]
+    Utf8(#[from] std::str::Utf8Error),
+    #[error("Error parsing a number: {0}")]
+    ParseInt(#[from] std::num::ParseIntError),
+    #[error("Unsuccessfull shell command: {0}")]
+    UnsuccessfullShell(std::process::ExitStatus),
+    #[error("Capacity error")]
+    Capacity,
+    #[error("Error reading a line: {0}")]
+    ReadLine(#[from] read_line::ReadLineError),
+}
+
 pub trait Metric {
     fn name(&self) -> &'static str;
     fn display(&self) -> impl Display;
-    fn start(&self) -> impl Future<Output = !> + '_;
+    fn update(&self) -> impl Future<Output = Result<(), impl Error>> + '_;
 }
 
 impl<T: Metric> Metric for &T {
@@ -48,8 +64,8 @@ impl<T: Metric> Metric for &T {
     fn display(&self) -> impl Display {
         T::display(*self)
     }
-    fn start(&self) -> impl Future<Output = !> + '_ {
-        T::start(*self)
+    fn update(&self) -> impl Future<Output = Result<(), impl Error>> + '_ {
+        T::update(*self)
     }
 }
 

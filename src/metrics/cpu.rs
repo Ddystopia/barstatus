@@ -1,11 +1,13 @@
 use std::{
     cell::{Cell, RefCell},
     fmt::Display,
-    future::Future,
-    time::Duration,
 };
 
-use crate::{emojis::AnimatedEmoji, read_line::read_line_from_path, Metric};
+use crate::{
+    emojis::AnimatedEmoji,
+    read_line::{read_line_from_path, ReadLineError},
+    Metric,
+};
 
 mod emojis {
     #![allow(dead_code)]
@@ -41,17 +43,28 @@ pub struct CpuMetric {
     idle: Cell<u64>,
     running_cat_emoji: RefCell<AnimatedEmoji<'static>>,
     sleeping_cat_emoji: RefCell<AnimatedEmoji<'static>>,
-    timeout: Duration,
 }
 
-impl CpuMetric {
-    #[must_use]
-    pub fn new(timeout: Duration) -> Self {
+#[derive(thiserror::Error, Debug)]
+pub enum CpuError {
+    #[error("IO error: {0}")]
+    Io(#[from] std::io::Error),
+    #[error("UTF-8 error: {0}")]
+    Utf8(#[from] std::str::Utf8Error),
+    #[error("Error parsing a number: {0}")]
+    ParseInt(#[from] std::num::ParseIntError),
+    #[error("Error reading a line: {0}")]
+    ReadLine(#[from] ReadLineError),
+    #[error("Malformed CPU data")]
+    MalformedCpuData,
+}
+
+impl Default for CpuMetric {
+    fn default() -> Self {
         Self {
             cpu_usage: Default::default(),
             total: Cell::new(1),
             idle: Cell::new(1),
-            timeout,
             running_cat_emoji: RefCell::new(
                 AnimatedEmoji::builder()
                     .frames(emojis::RUNNING_CAT_NEW.as_slice())
@@ -68,7 +81,9 @@ impl CpuMetric {
             ),
         }
     }
+}
 
+impl CpuMetric {
     fn get_emoji(&self, cpu_usage: u8) -> char {
         let cpu_usage = cpu_usage as f64 / 100.0;
         let threshold = SLEEPING_THRESHOLD_PERCENTAGE;
@@ -84,19 +99,19 @@ impl CpuMetric {
         }
     }
 
-    async fn read_percentage(&self) -> Option<u8> {
-        let timings = read_line_from_path::<256>("/proc/stat").await.ok()?;
+    async fn read_percentage(&self) -> Result<u8, CpuError> {
+        let timings = read_line_from_path::<256>("/proc/stat").await?;
 
         let mut timings = timings
             .split_whitespace()
             .skip(1)
             .map(|s| s.parse().unwrap_or(0));
 
-        let user = timings.next()?;
-        let nice = timings.next()?;
-        let system = timings.next()?;
-        let idle_ = timings.next()?;
-        let iowait = timings.next()?;
+        let user = timings.next().ok_or(CpuError::MalformedCpuData)?;
+        let nice = timings.next().ok_or(CpuError::MalformedCpuData)?;
+        let system = timings.next().ok_or(CpuError::MalformedCpuData)?;
+        let idle_ = timings.next().ok_or(CpuError::MalformedCpuData)?;
+        let iowait = timings.next().ok_or(CpuError::MalformedCpuData)?;
 
         let total_new: u64 = user + nice + system + idle_ + iowait;
         let idle_new = idle_ + iowait;
@@ -107,12 +122,12 @@ impl CpuMetric {
             .checked_div(delta_total)
             .unwrap_or(0);
 
-        let percentage = u8::try_from(perc_u64).ok()?;
+        let percentage = u8::try_from(perc_u64).unwrap_or(100);
 
         self.total.set(total_new);
         self.idle.set(idle_new);
 
-        Some(percentage)
+        Ok(percentage)
     }
 }
 
@@ -125,16 +140,12 @@ impl Metric for CpuMetric {
         self
     }
 
-    fn start(&self) -> impl Future<Output = !> + '_ {
-        async {
-            loop {
-                let percentage = self.read_percentage().await;
+    async fn update(&self) -> Result<(), CpuError> {
+        let percentage = self.read_percentage().await?;
 
-                self.cpu_usage.set(percentage);
+        self.cpu_usage.set(Some(percentage));
 
-                tokio::time::sleep(self.timeout).await;
-            }
-        }
+        Ok(())
     }
 }
 

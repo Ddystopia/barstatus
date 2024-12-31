@@ -1,25 +1,11 @@
-use crate::Metric;
-use std::cell::Cell;
-use std::fmt::Display;
-use std::time::Duration;
+use crate::{CommonError, Metric};
+use std::{cell::Cell, fmt::Display};
 use tokio::process::Command;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct UpdatesMetric {
     system_update: Cell<bool>,
     updates_count: Cell<usize>,
-    timeout: Duration,
-}
-
-impl UpdatesMetric {
-    #[must_use]
-    pub fn new(timeout: Duration) -> Self {
-        Self {
-            timeout,
-            updates_count: Cell::new(0),
-            system_update: Cell::new(false),
-        }
-    }
 }
 
 impl Metric for UpdatesMetric {
@@ -32,33 +18,28 @@ impl Metric for UpdatesMetric {
     }
 
     #[allow(clippy::unnecessary_map_or)]
-    fn start(&self) -> impl std::future::Future<Output = !> + '_ {
-        async {
-            loop {
-                let res: Option<(bool, usize)> = try {
-                    let result = Command::new("sh")
-                        .arg("-c")
-                        .arg("checkupdates")
-                        .output()
-                        .await
-                        .ok()?;
+    async fn update(&self) -> Result<(), CommonError> {
+        match try {
+            let result = Command::new("sh")
+                .arg("-c")
+                .arg("checkupdates")
+                .output()
+                .await?;
 
-                    if !result.status.success() {
-                        None?;
-                    }
+            if !result.status.success() {
+                return Err(CommonError::UnsuccessfullShell(result.status));
+            }
 
-                    let updates = std::str::from_utf8(&result.stdout).ok()?;
+            let updates = std::str::from_utf8(&result.stdout)?;
 
-                    self.system_update.set(updates.contains("linux"));
-                    self.updates_count.set(updates.lines().count());
-
-                    (updates.contains("linux"), updates.lines().count())
-                };
-
-                self.system_update.set(res.map_or(false, |(it, _)| it));
-                self.updates_count.set(res.map_or(0, |(_, it)| it));
-
-                tokio::time::sleep(self.timeout).await;
+            self.system_update.set(updates.contains("linux"));
+            self.updates_count.set(updates.lines().count());
+        } {
+            Ok(()) => Ok(()),
+            Err(err) => {
+                self.system_update.set(false);
+                self.updates_count.set(0);
+                Err(err)
             }
         }
     }
