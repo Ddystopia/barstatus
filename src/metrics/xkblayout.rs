@@ -27,6 +27,10 @@ impl Metric for XkbLayoutMetric {
                 .output()
                 .await?;
 
+            if !out.status.success() {
+                return Err(crate::CommonError::UnsuccessfullShell(out.status));
+            }
+
             let loc = std::str::from_utf8(&out.stdout)?;
 
             let locale = Locale::try_from(loc.strip_suffix('\n').unwrap_or(loc));

@@ -53,6 +53,10 @@ impl NetMetric {
             .output()
             .await?;
 
+        if !out.status.success() {
+            return Err(CommonError::UnsuccessfullShell(out.status));
+        }
+
         let ifs = std::str::from_utf8(&out.stdout)?;
         let mut ifs = ifs.lines().filter(|iface| !iface.is_empty());
 

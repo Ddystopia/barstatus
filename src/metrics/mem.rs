@@ -27,6 +27,10 @@ impl Metric for MemMetric {
                 .output()
                 .await?;
 
+            if !out.status.success() {
+                return Err(CommonError::UnsuccessfullShell(out.status));
+            }
+
             let out = std::str::from_utf8(&out.stdout)?;
 
             self.usage

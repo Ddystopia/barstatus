@@ -81,7 +81,6 @@ fn main() {
             update_metric_in_interval("Xkb", Duration::from_millis(300), &xkb_metric),
             update_metric_in_interval("Updates", Duration::from_secs(60), &updates_metric),
             update_metric_in_interval("Battery", Duration::from_secs(1), &battery_metric),
-            update_metric_in_interval("Date", Duration::MAX, &date_metric), // doesn't need update
             interval
         ]);
 

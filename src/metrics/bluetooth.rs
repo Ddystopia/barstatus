@@ -21,8 +21,15 @@ impl Metric for BluetoothChargeMetric {
         let result: Result<(), _> = try {
             // TODO: rewrite from shell api
             let out = Command::new("sh").arg("-c").arg(cmd).output().await?;
-            let percentage = std::str::from_utf8(&out.stdout)?;
-            let percentage = percentage.trim().parse::<u8>()?;
+            if !out.status.success() {
+                return Err(CommonError::UnsuccessfullShell(out.status));
+            }
+            let percentage = std::str::from_utf8(&out.stdout)?.trim();
+            if percentage.is_empty() {
+                self.0.set(None);
+                return Ok(());
+            }
+            let percentage = percentage.parse::<u8>()?;
             self.0.set(Some(percentage));
         };
 
