@@ -35,7 +35,7 @@ impl<'a, FA, FB> AnimatedEmojiBuilder<FA, FB> {
     ///
     /// This function returns an `AnimatedEmojiBuilder` with the `MaxFrequencySet` marker type, and the same `frames` marker type as the original builder.
     ///
-    /// # Invariants
+    /// # Panics
     ///
     /// * The `max_frequency` must be positive. If it is not, this method will panic.
     ///
@@ -74,6 +74,7 @@ impl<'a, FA, FB> AnimatedEmojiBuilder<FA, FB> {
     }
 
     #[inline]
+    #[must_use]
     pub fn min_frequency(mut self, min_frequency: f64) -> Self {
         self.min_frequency = min_frequency;
         self

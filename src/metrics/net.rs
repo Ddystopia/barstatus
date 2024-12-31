@@ -1,19 +1,23 @@
 use std::{
+    cell::Cell,
     fmt::Display,
     path::Path,
-    process::Command,
     time::{Duration, Instant},
 };
 
+use tokio::process::Command;
+
 use crate::{read_line::read_line_from_path, Metric};
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct NetMetric {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NetMetric(Duration, Cell<NetMetricInner>);
+
+#[derive(Copy, Debug, Clone, PartialEq, Eq)]
+struct NetMetricInner {
     upload: u64,
     download: u64,
     rx_bytes: u64,
     tx_bytes: u64,
-    timeout: Duration,
     previous_update: Instant,
 }
 
@@ -43,28 +47,28 @@ impl Display for NumFmt {
 
 impl NetMetric {
     /// Creates a new `NetMetric` with the given timeout.
-    /// # Panics
-    /// If the timeout is too large.
     #[must_use]
     pub fn new(timeout: Duration) -> Self {
-        Self {
+        Self(
             timeout,
-            upload: 0,
-            download: 0,
-            rx_bytes: 0,
-            tx_bytes: 0,
-            previous_update: Instant::now().checked_sub(timeout).unwrap(),
-        }
+            Cell::new(NetMetricInner {
+                upload: 0,
+                download: 0,
+                rx_bytes: 0,
+                tx_bytes: 0,
+                previous_update: Instant::now()
+                    .checked_sub(timeout)
+                    .unwrap_or(Instant::now()),
+            }),
+        )
     }
 
-    fn for_zipped_xfiles<F>(mut f: F)
-    where
-        F: for<'a> FnMut(&'a Path, &'a Path),
-    {
+    async fn for_zipped_xfiles<F: async FnMut(&Path, &Path)>(mut f: F) {
         let Ok(out) = Command::new("sh")
             .arg("-c")
             .arg("ip addr | awk '/state UP/ {print $2}' | sed 's/.$//'")
             .output()
+            .await
         else {
             return;
         };
@@ -88,57 +92,75 @@ impl NetMetric {
         });
 
         for (rx, tx) in paths {
-            f(Path::new(&rx[..]), Path::new(&tx[..]));
+            f(Path::new(&rx[..]), Path::new(&tx[..])).await;
         }
     }
 }
 
-impl Metric for NetMetric {
-    fn timeout(&self) -> Duration {
-        self.timeout
-    }
+impl NetMetric {
+    async fn update(&self) {
+        let mut inner = self.1.get();
+        let delta = inner.previous_update.elapsed();
 
-    fn update(&mut self) {
-        let delta = self.previous_update.elapsed();
-
-        if delta < self.timeout {
+        if delta < self.0 {
             return;
         }
 
         let mut rx_bytes = 0;
         let mut tx_bytes = 0;
 
-        Self::for_zipped_xfiles(|rx, tx| {
-            let rx = read_line_from_path::<24>(rx);
-            let tx = read_line_from_path::<24>(tx);
+        Self::for_zipped_xfiles(async |rx, tx| {
+            let rx = read_line_from_path::<24>(rx).await;
+            let tx = read_line_from_path::<24>(tx).await;
             let rx = rx.map(|rx| rx.parse::<u64>());
             let tx = tx.map(|tx| tx.parse::<u64>());
             if let (Ok(Ok(rx)), Ok(Ok(tx))) = (rx, tx) {
                 rx_bytes += rx;
                 tx_bytes += tx;
             }
-        });
+        })
+        .await;
 
         let now = Instant::now();
         let delta = delta.as_secs();
 
         if delta > 0
-            && rx_bytes > self.rx_bytes
-            && tx_bytes > self.tx_bytes
-            && self.tx_bytes != 0
-            && self.rx_bytes != 0
+            && rx_bytes > inner.rx_bytes
+            && tx_bytes > inner.tx_bytes
+            && inner.tx_bytes != 0
+            && inner.rx_bytes != 0
         {
-            self.upload = (tx_bytes - self.tx_bytes).checked_div(delta).unwrap_or(0);
-            self.download = (rx_bytes - self.rx_bytes).checked_div(delta).unwrap_or(0);
+            inner.upload = (tx_bytes - inner.tx_bytes).checked_div(delta).unwrap_or(0);
+            inner.download = (rx_bytes - inner.rx_bytes).checked_div(delta).unwrap_or(0);
         }
 
-        self.rx_bytes = rx_bytes;
-        self.tx_bytes = tx_bytes;
-        self.previous_update = now;
+        inner.rx_bytes = rx_bytes;
+        inner.tx_bytes = tx_bytes;
+        inner.previous_update = now;
+
+        self.1.set(inner);
     }
 }
 
-impl Display for NetMetric {
+impl Metric for NetMetric {
+    fn display(&self) -> impl Display {
+        self.1.get()
+    }
+    fn name(&self) -> &'static str {
+        "Net"
+    }
+
+    fn start(&self) -> impl std::future::Future<Output = !> + '_ {
+        async {
+            loop {
+                self.update().await;
+                tokio::time::sleep(self.0).await;
+            }
+        }
+    }
+}
+
+impl Display for NetMetricInner {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,

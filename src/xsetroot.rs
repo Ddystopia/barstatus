@@ -1,4 +1,4 @@
-use std::ffi::CStr;
+use std::io::Write;
 
 #[derive(Debug)]
 pub enum Error {
@@ -17,10 +17,17 @@ pub enum Error {
 }
 
 #[cfg(not(feature = "xsetroot_dyn"))]
-pub fn set_on_bar(val: &CStr) -> Result<(), Error> {
-    let val = val.to_str()?;
+pub fn set_on_bar(line: &str) -> Result<(), Error> {
+    let mut buf: [u8; 256] = [0; 256];
+    let mut writer = std::io::Cursor::new(&mut buf[..]);
+    if let Err(err) = write!(writer, "{line: >93}") {
+        unreachable!("Buffer is big enough for the line: {err}");
+    }
+    let position = writer.position() as usize + 1;
+    let line = std::str::from_utf8(&buf[..position])?;
+
     let status = std::process::Command::new("xsetroot")
-        .args(["-name", val])
+        .args(["-name", line])
         .spawn()?
         .wait()?;
 
@@ -32,7 +39,16 @@ pub fn set_on_bar(val: &CStr) -> Result<(), Error> {
 }
 
 #[cfg(feature = "xsetroot_dyn")]
-pub fn set_on_bar(val: &CStr) -> Result<(), Error> {
+pub fn set_on_bar(line: &str) -> Result<(), Error> {
+    let mut buf: [u8; 256] = [0; 256];
+    let mut writer = std::io::Cursor::new(&mut buf[..]);
+    if let Err(err) = write!(writer, "{line: >93}") {
+        unreachable!("Error while writing to alignment buffer: {err}");
+    }
+    let position = writer.position() as usize + 1;
+    let line = std::ffi::CStr::from_bytes_with_nul(&buf[..position]);
+    let line = line.expect("We have zero byte at the end for sure");
+
     // SAFETY: This is more or less direct rewrite from `xsetroot.c`
     unsafe {
         let xlib = x11_dl::xlib::Xlib::open()?;
@@ -44,7 +60,7 @@ pub fn set_on_bar(val: &CStr) -> Result<(), Error> {
         let screen = (xlib.XDefaultScreen)(dpy);
         let root = (xlib.XRootWindow)(dpy, screen);
 
-        (xlib.XStoreName)(dpy, root, val.as_ptr());
+        (xlib.XStoreName)(dpy, root, line.as_ptr());
         (xlib.XCloseDisplay)(dpy);
     };
 
@@ -86,7 +102,7 @@ impl std::fmt::Display for Error {
             #[cfg(not(feature = "xsetroot_dyn"))]
             Self::XSetRootSignal => write!(f, "xsetroot was killed by a signal"),
             #[cfg(not(feature = "xsetroot_dyn"))]
-            Self::NotUtf8(err) => write!(f, "Not UTF-8: {err}")
+            Self::NotUtf8(err) => write!(f, "Not UTF-8: {err}"),
         }
     }
 }

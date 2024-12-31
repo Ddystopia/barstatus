@@ -1,37 +1,61 @@
 use crate::Metric;
-use std::fmt::Display;
-use std::process::Command;
-use std::time::Duration;
+use std::{cell::Cell, fmt::Display, time::Duration};
+use tokio::process::Command;
 
-#[derive(Default, Debug, Clone, PartialEq, Eq, Hash)]
-pub struct MemMetric {}
+type Usage = heapless::String<24>;
+
+#[derive(Default)]
+pub struct MemMetric {
+    usage: Cell<Usage>,
+}
 
 impl MemMetric {
-    #[allow(dead_code)]
     #[must_use]
     pub fn new() -> Self {
-        Self {}
+        Self::default()
     }
 }
 
 impl Metric for MemMetric {
-    fn timeout(&self) -> Duration {
-        Duration::ZERO
+    fn name(&self) -> &'static str {
+        "Mem"
+    }
+
+    fn display(&self) -> impl Display {
+        self
+    }
+
+    fn start(&self) -> impl std::future::Future<Output = !> + '_ {
+        async move {
+            loop {
+                let usage: Option<Usage> = try {
+                    // TODO: rewrite from shell api
+                    let out = Command::new("sh")
+                        .arg("-c")
+                        .arg("free -h | awk '/Mem/ {printf \"%s/%s\n\", $3, $2}'")
+                        .output()
+                        .await
+                        .ok()?;
+
+                    let out = std::str::from_utf8(&out.stdout).ok()?;
+
+                    Usage::try_from(out).ok()?
+                };
+
+                self.usage.set(usage.unwrap_or_default());
+
+                tokio::time::sleep(Duration::from_secs(2)).await;
+            }
+        }
     }
 }
 
 impl Display for MemMetric {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // TODO: rewrite from shell api
+        let usage = self.usage.take();
 
-        let out = Command::new("sh")
-            .arg("-c")
-            .arg("free -h | awk '/Mem/ {printf \"%s/%s\n\", $3, $2}'")
-            .output()
-            .map_err(|_| std::fmt::Error)?;
+        self.usage.set(usage.clone());
 
-        let out = std::str::from_utf8(&out.stdout).map_err(|_| std::fmt::Error)?;
-
-        write!(f, "📝 {out}")
+        write!(f, "📝 {usage}")
     }
 }

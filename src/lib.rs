@@ -1,4 +1,9 @@
-use std::{fmt::Display, time::Duration};
+#![feature(async_trait_bounds)]
+#![feature(try_blocks)]
+#![feature(never_type)]
+#![forbid(unsafe_code)]
+
+use std::{fmt::Display, future::Future};
 
 pub(crate) mod read_line;
 
@@ -19,7 +24,7 @@ pub mod metrics {
     pub mod net;
     pub mod update;
     pub mod xkblayout;
-
+    //
     pub use battery::BatteryMetric;
     pub use bluetooth::BluetoothChargeMetric;
     pub use cpu::CpuMetric;
@@ -30,14 +35,22 @@ pub mod metrics {
     pub use xkblayout::XkbLayoutMetric;
 }
 
-pub trait Metric: Display + std::fmt::Debug {
-    fn update(&mut self) {}
-    fn timeout(&self) -> Duration;
+pub trait Metric {
+    fn name(&self) -> &'static str;
+    fn display(&self) -> impl Display;
+    fn start(&self) -> impl Future<Output = !> + '_;
 }
 
-pub trait Metric2 {
-    fn display(&self) -> impl Display;
-    fn future(&self) -> impl std::future::Future<Output = std::convert::Infallible> + '_;
+impl<T: Metric> Metric for &T {
+    fn name(&self) -> &'static str {
+        T::name(*self)
+    }
+    fn display(&self) -> impl Display {
+        T::display(*self)
+    }
+    fn start(&self) -> impl Future<Output = !> + '_ {
+        T::start(*self)
+    }
 }
 
 #[macro_export]
