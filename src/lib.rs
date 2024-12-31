@@ -35,6 +35,11 @@ pub trait Metric: Display + std::fmt::Debug {
     fn timeout(&self) -> Duration;
 }
 
+pub trait Metric2 {
+    fn display(&self) -> impl Display;
+    fn future(&self) -> impl std::future::Future<Output = std::convert::Infallible> + '_;
+}
+
 #[macro_export]
 macro_rules! generic_for_each {
     ($list:ident, |$x:ident: &mut impl $trait:ident $( + $trait_rest:ident )*| $body:expr) => {

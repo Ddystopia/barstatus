@@ -14,10 +14,58 @@ use barstatus::{
     Metric,
 };
 use frunk::hlist;
+use future_to_stream::AnyStream;
+use tokio_stream::wrappers::IntervalStream;
+use tokio_stream::StreamExt;
+
+mod future_to_stream;
 mod xsetroot;
 
 const FPS: f64 = 71.;
 const LOOP_TIME: Duration = Duration::from_nanos((1_000_000_000. / FPS) as u64);
+
+macro_rules! merge {
+    [$stream:expr] => {
+        $stream
+    };
+    [$stream:expr, $($streams:expr),+] => {
+        $stream.merge(merge![$($streams),+])
+    };
+}
+
+fn main2(metric1: impl barstatus::Metric2, metric2: impl barstatus::Metric2) -> anyhow::Result<()> {
+    env_logger::init();
+
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .context("Unable to create tokio runtime")?;
+
+    rt.block_on(async {
+        let mut interval = tokio::time::interval(LOOP_TIME);
+        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+
+        let interval = IntervalStream::new(interval);
+        let metric1_future = metric1.future().to_any_stream();
+        let metric2_future = metric2.future().to_any_stream();
+
+        let stream = merge![metric1_future, metric2_future, interval];
+        let mut stream = std::pin::pin!(stream);
+
+        while let Some(time) = stream.next().await {
+            eprintln!("{:?}", time);
+
+            let mut buf: [u8; 1024] = [0; 1024];
+            let mut writer = Cursor::new(&mut buf[..]);
+
+            write!(writer, "{}", metric1.display()).unwrap();
+            write!(writer, " | ").unwrap();
+            write!(writer, "{}", metric2.display()).unwrap();
+        }
+    });
+
+    Ok(())
+}
 
 fn main() {
     env_logger::init();
