@@ -1,10 +1,10 @@
 use std::{
     io::{Cursor, Write},
-    process::{Command, ExitStatus},
     thread,
     time::Duration,
 };
 
+use anyhow::Context;
 use barstatus::{
     generic_for_each,
     metrics::{
@@ -14,6 +14,7 @@ use barstatus::{
     Metric,
 };
 use frunk::hlist;
+mod xsetroot;
 
 const FPS: f64 = 71.;
 const LOOP_TIME: Duration = Duration::from_nanos((1_000_000_000. / FPS) as u64);
@@ -63,10 +64,10 @@ fn main() {
         let mut buf: [u8; 1024] = [0; 1024];
         let mut writer = std::io::Cursor::new(&mut buf[..]);
         write!(writer, "{line: >93}").unwrap();
-        let position = writer.position() as usize;
-        let line = std::str::from_utf8(&buf[..position]).unwrap();
+        let position = writer.position() as usize + 1;
+        let line = std::ffi::CStr::from_bytes_with_nul(&buf[..position]).unwrap();
 
-        if let Err(e) = set_on_bar(line) {
+        if let Err(e) = xsetroot::set_on_bar(line) {
             eprintln!("Error while setting on bar: {e}");
             break;
         };
@@ -75,12 +76,4 @@ fn main() {
 
         thread::sleep(LOOP_TIME.saturating_sub(loop_start.elapsed()));
     }
-}
-
-fn set_on_bar(val: &str) -> Result<ExitStatus, std::io::Error> {
-    // fixme: slow
-    Command::new("xsetroot")
-        .args(["-name", val])
-        .spawn()?
-        .wait()
 }
