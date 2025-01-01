@@ -1,6 +1,10 @@
 #![cfg_attr(not(feature = "xsetroot_dyn"), forbid(unsafe_code))]
 #![feature(never_type)]
 
+// todo: adaptive frame rate. We do not need 71 fps all the time, only when
+//       cat animation is running at full speed. Performance is good even at 71
+//       fps, but adaptation will make this program nearly transparent.
+
 use std::{
     io::{Cursor, Write},
     pin::pin,
@@ -31,12 +35,14 @@ macro_rules! merge {
     [$stream:expr] => {
         $stream
     };
-    [$stream:expr, $($streams:expr),+] => {
+    [$stream:expr $(, $streams:expr)+ $(,)?] => {
         $stream.merge(merge![$($streams),+])
     };
 }
 
 /// "Spawns" a loop that updates a metric every `interval` duration.
+/// Note that it give a stream yielding any `T` - this is because it never
+/// actually yields, so we can say we yield any `T`.
 fn update_metric_in_interval<'a, M: Metric, T>(
     name: &'static str, // note: maybe use `Metric::name`
     interval: Duration,
@@ -69,34 +75,41 @@ fn main() {
     let date_metric = DateMetric::default();
 
     let main = async move {
-        let mut interval = tokio::time::interval(LOOP_TIME);
-        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        let mut frame_interval = tokio::time::interval(LOOP_TIME);
+        frame_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
-        let interval = IntervalStream::new(interval);
+        let frame_interval = IntervalStream::new(frame_interval);
 
-        let mut stream = pin!(merge![
+        // Those are being polled together with `frame_interval`, but
+        // never yield any value. In this particular case `LocalSet` might be
+        // an option too, but this approach allows not only `!Send`, but also
+        // not `'static` futures, making it very appealing to use.
+        let background_metrics = merge![
             update_metric_in_interval("Net", Duration::from_secs(2), &net_metric),
             update_metric_in_interval("Cpu", Duration::from_millis(600), &cpu_metric),
             update_metric_in_interval("Bluetooth", Duration::from_secs(5), &bluetooth_metric),
             update_metric_in_interval("Xkb", Duration::from_millis(300), &xkb_metric),
             update_metric_in_interval("Updates", Duration::from_secs(60), &updates_metric),
             update_metric_in_interval("Battery", Duration::from_secs(1), &battery_metric),
-            interval
-        ]);
-
-        let mut metrics = hlist![
-            &net_metric,
-            &cpu_metric,
-            &bluetooth_metric,
-            &xkb_metric,
-            &updates_metric,
-            &battery_metric,
-            &date_metric
         ];
+
+        // So only `frame_interval` yieods, others are just being continuously
+        // polled
+        let mut stream = pin!(background_metrics.merge(frame_interval));
 
         while let Some(_time) = stream.next().await {
             let mut buf: [u8; 256] = [0; 256];
             let mut writer = Cursor::new(&mut buf[..]);
+
+            let mut metrics = hlist![
+                &net_metric,
+                &cpu_metric,
+                &bluetooth_metric,
+                &xkb_metric,
+                &updates_metric,
+                &battery_metric,
+                &date_metric
+            ];
 
             generic_for_each!(
                 metrics,
