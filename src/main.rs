@@ -7,7 +7,6 @@
 
 use std::{
     io::{Cursor, Write},
-    pin::pin,
     time::Duration,
 };
 
@@ -20,44 +19,28 @@ use barstatus::{
     Metric,
 };
 use frunk::hlist;
-use future_to_stream::FutureToStream;
-use tokio_stream::wrappers::IntervalStream;
-use tokio_stream::StreamExt;
 
-mod future_to_stream;
 mod xsetroot;
 
 const FPS: f64 = 71.;
 const LOOP_TIME: Duration = Duration::from_nanos((1_000_000_000. / FPS) as u64);
 
-/// `merge![a, b, c]` is equivalent to `a.merge(b.merge(c))`
-macro_rules! merge {
-    [$stream:expr] => {
-        $stream
-    };
-    [$stream:expr $(, $streams:expr)+ $(,)?] => {
-        $stream.merge(merge![$($streams),+])
-    };
-}
-
 /// "Spawns" a loop that updates a metric every `interval` duration.
 /// Note that it give a stream yielding any `T` - this is because it never
 /// actually yields, so we can say we yield any `T`.
-fn update_metric_in_interval<'a, M: Metric, T>(
+async fn metric_interval<'a, M: Metric>(
     name: &'static str, // note: maybe use `Metric::name`
     interval: Duration,
     metric: &'a M,
-) -> impl tokio_stream::Stream<Item = T> + use<'a, M, T> {
-    FutureToStream::new(async move {
-        let mut interval = tokio::time::interval(interval);
-        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-        loop {
-            interval.tick().await;
-            if let Err(err) = metric.update().await {
-                log::error!("Error in {name}: {err}");
-            }
+) {
+    let mut interval = tokio::time::interval(interval);
+    interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+    loop {
+        interval.tick().await;
+        if let Err(err) = metric.update().await {
+            log::error!("Error in {name}: {err}");
         }
-    })
+    }
 }
 
 fn main() {
@@ -74,30 +57,14 @@ fn main() {
     let battery_metric = BatteryMetric::new(80);
     let date_metric = DateMetric::default();
 
-    let main = async move {
-        let mut frame_interval = tokio::time::interval(LOOP_TIME);
-        frame_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+    let set = tokio::task::LocalSet::new();
 
-        let frame_interval = IntervalStream::new(frame_interval);
+    let mut frame_interval = tokio::time::interval(LOOP_TIME);
+    frame_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
-        // Those are being polled together with `frame_interval`, but
-        // never yield any value. In this particular case `LocalSet` might be
-        // an option too, but this approach allows not only `!Send`, but also
-        // not `'static` futures, making it very appealing to use.
-        let background_metrics = merge![
-            update_metric_in_interval("Net", Duration::from_secs(2), &net_metric),
-            update_metric_in_interval("Cpu", Duration::from_millis(600), &cpu_metric),
-            update_metric_in_interval("Bluetooth", Duration::from_secs(5), &bluetooth_metric),
-            update_metric_in_interval("Xkb", Duration::from_millis(300), &xkb_metric),
-            update_metric_in_interval("Updates", Duration::from_secs(60), &updates_metric),
-            update_metric_in_interval("Battery", Duration::from_secs(1), &battery_metric),
-        ];
-
-        // So only `frame_interval` yieods, others are just being continuously
-        // polled
-        let mut stream = pin!(background_metrics.merge(frame_interval));
-
-        while let Some(_time) = stream.next().await {
+    let main = async {
+        loop {
+            frame_interval.tick().await;
             let mut buf: [u8; 256] = [0; 256];
             let mut writer = Cursor::new(&mut buf[..]);
 
@@ -151,5 +118,15 @@ fn main() {
         .build()
         .expect("Failed to build tokio runtime");
 
-    rt.block_on(main);
+    rt.block_on(set.run_until(async {
+        tokio::join!(
+            main,
+            set.run_until(metric_interval("Net", Duration::from_secs(2), &net_metric)),
+            set.run_until(metric_interval("Cpu", Duration::from_millis(600), &cpu_metric)),
+            set.run_until(metric_interval("Bluetooth", Duration::from_secs(5), &bluetooth_metric)),
+            set.run_until(metric_interval("Xkb", Duration::from_millis(300), &xkb_metric)),
+            set.run_until(metric_interval("Updates", Duration::from_secs(60), &updates_metric)),
+            set.run_until(metric_interval("Battery", Duration::from_secs(1), &battery_metric)),
+        )
+    }));
 }
