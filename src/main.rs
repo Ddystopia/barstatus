@@ -46,6 +46,11 @@ async fn metric_interval<'a, M: Metric>(
 fn main() {
     env_logger::init();
 
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("Failed to build tokio runtime");
+
     let net_metric = NetMetric::default();
     let cpu_metric = CpuMetric::default();
     // bluetoothctl, grep, sed
@@ -59,10 +64,10 @@ fn main() {
 
     let set = tokio::task::LocalSet::new();
 
-    let mut frame_interval = tokio::time::interval(LOOP_TIME);
-    frame_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-
     let main = async {
+        let mut frame_interval = tokio::time::interval(LOOP_TIME);
+        frame_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+
         loop {
             frame_interval.tick().await;
             let mut buf: [u8; 256] = [0; 256];
@@ -112,11 +117,6 @@ fn main() {
 
         unreachable!("Interval stream cannot end");
     };
-
-    let rt = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .expect("Failed to build tokio runtime");
 
     rt.block_on(set.run_until(async {
         tokio::join!(
