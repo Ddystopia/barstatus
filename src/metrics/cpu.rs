@@ -102,10 +102,7 @@ impl CpuMetric {
     async fn read_percentage(&self) -> Result<u8, CpuError> {
         let timings = read_line_from_path::<256>("/proc/stat").await?;
 
-        let mut timings = timings
-            .split_whitespace()
-            .skip(1)
-            .map(|s| s.parse().unwrap_or(0));
+        let mut timings = timings.split_whitespace().skip(1).map(|s| s.parse().unwrap_or(0));
 
         let user = timings.next().ok_or(CpuError::MalformedCpuData)?;
         let nice = timings.next().ok_or(CpuError::MalformedCpuData)?;

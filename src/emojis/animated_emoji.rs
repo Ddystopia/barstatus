@@ -17,13 +17,7 @@ impl<'a> AnimatedEmoji<'a> {
         previous_frame_update: Option<Instant>,
         frames: &'a [char],
     ) -> AnimatedEmoji<'a> {
-        AnimatedEmoji {
-            max_frequency,
-            min_frequency,
-            frame: 0,
-            previous_frame_update,
-            frames,
-        }
+        AnimatedEmoji { max_frequency, min_frequency, frame: 0, previous_frame_update, frames }
     }
 
     #[must_use]
@@ -33,10 +27,7 @@ impl<'a> AnimatedEmoji<'a> {
     /// # Panics
     /// if speed is not a value between 0 and 1
     pub fn next_frame(&mut self, speed: f64) -> char {
-        assert!(
-            (0.0..=1.0).contains(&speed),
-            "Speed must be a value between 0 and 1"
-        );
+        assert!((0.0..=1.0).contains(&speed), "Speed must be a value between 0 and 1");
         let frequency = self.min_frequency + speed * (self.max_frequency - self.min_frequency);
         let fps = self.frames.len() as f64 * frequency;
         let elapsed = self.previous_frame_update.map(|it| it.elapsed());

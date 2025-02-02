@@ -37,9 +37,7 @@ pub async fn read_line_from_path<const N: usize>(
 
     let timings = std::str::from_utf8(&timings[..read])?;
     let mut string = heapless::String::new();
-    string
-        .push_str(timings)
-        .map_err(|()| ReadLineError::Capacity)?;
+    string.push_str(timings).map_err(|()| ReadLineError::Capacity)?;
 
     Ok(string)
 }

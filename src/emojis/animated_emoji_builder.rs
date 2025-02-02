@@ -16,11 +16,7 @@ pub struct AnimatedEmojiBuilder<MaxFrequencyState = MaxFrequencyNotSet, FramesSt
 
 impl Default for AnimatedEmojiBuilder<MaxFrequencyNotSet, FramesNotSet> {
     fn default() -> Self {
-        Self {
-            max_frequency: MaxFrequencyNotSet,
-            frames: FramesNotSet,
-            min_frequency: 0.,
-        }
+        Self { max_frequency: MaxFrequencyNotSet, frames: FramesNotSet, min_frequency: 0. }
     }
 }
 

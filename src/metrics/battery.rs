@@ -17,20 +17,15 @@ struct DisplayBattery(Option<&'static str>, Option<u8>, u8);
 impl BatteryMetric {
     #[must_use]
     pub fn new(threshold: u8) -> Self {
-        Self {
-            threshold,
-            display: Default::default(),
-        }
+        Self { threshold, display: Default::default() }
     }
 
     async fn emoji(&self) -> Result<&'static str, CommonError> {
-        Ok(
-            match read_line_from_path::<24>("/sys/class/power_supply/BAT0/status").await? {
-                status if status.trim() == "Charging" => "🔌🔼",
-                status if status.trim() == "Discharging" => "🔋🔽",
-                _ => "🔋",
-            },
-        )
+        Ok(match read_line_from_path::<24>("/sys/class/power_supply/BAT0/status").await? {
+            status if status.trim() == "Charging" => "🔌🔼",
+            status if status.trim() == "Discharging" => "🔋🔽",
+            _ => "🔋",
+        })
     }
 
     async fn percentage(&self) -> Result<u8, CommonError> {

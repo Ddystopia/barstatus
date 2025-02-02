@@ -90,9 +90,7 @@ impl Metric for NetMetric {
 
     async fn update(&self) -> Result<(), CommonError> {
         let mut inner = self.0.get();
-        let delta = inner
-            .previous_update
-            .map_or(Duration::from_secs(0), |prev| prev.elapsed());
+        let delta = inner.previous_update.map_or(Duration::from_secs(0), |prev| prev.elapsed());
 
         let mut rx_bytes = 0;
         let mut tx_bytes = 0;

@@ -33,8 +33,7 @@ impl Metric for MemMetric {
 
             let out = std::str::from_utf8(&out.stdout)?;
 
-            self.usage
-                .set(Usage::try_from(out).map_err(|()| CommonError::Capacity)?);
+            self.usage.set(Usage::try_from(out).map_err(|()| CommonError::Capacity)?);
         } {
             Ok(()) => Ok(()),
             Err(err) => {

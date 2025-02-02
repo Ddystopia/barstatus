@@ -26,10 +26,7 @@ pub fn set_on_bar(line: &str) -> Result<(), Error> {
     let position = writer.position() as usize + 1;
     let line = std::str::from_utf8(&buf[..position])?;
 
-    let status = std::process::Command::new("xsetroot")
-        .args(["-name", line])
-        .spawn()?
-        .wait()?;
+    let status = std::process::Command::new("xsetroot").args(["-name", line]).spawn()?.wait()?;
 
     match status.code() {
         Some(0) => Ok(()),

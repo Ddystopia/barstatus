@@ -21,11 +21,7 @@ impl Metric for XkbLayoutMetric {
 
     async fn update(&self) -> Result<(), crate::CommonError> {
         match try {
-            let out = Command::new("sh")
-                .arg("-c")
-                .arg("xkb-switch")
-                .output()
-                .await?;
+            let out = Command::new("sh").arg("-c").arg("xkb-switch").output().await?;
 
             if !out.status.success() {
                 return Err(crate::CommonError::UnsuccessfullShell(out.status));
@@ -34,8 +30,7 @@ impl Metric for XkbLayoutMetric {
             let loc = std::str::from_utf8(&out.stdout)?;
 
             let locale = Locale::try_from(loc.strip_suffix('\n').unwrap_or(loc));
-            self.locale
-                .set(Some(locale.map_err(|()| crate::CommonError::Capacity)?));
+            self.locale.set(Some(locale.map_err(|()| crate::CommonError::Capacity)?));
         } {
             Ok(()) => Ok(()),
             Err(err) => {

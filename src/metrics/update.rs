@@ -20,11 +20,7 @@ impl Metric for UpdatesMetric {
     #[allow(clippy::unnecessary_map_or)]
     async fn update(&self) -> Result<(), CommonError> {
         match try {
-            let result = Command::new("sh")
-                .arg("-c")
-                .arg("checkupdates")
-                .output()
-                .await?;
+            let result = Command::new("sh").arg("-c").arg("checkupdates").output().await?;
 
             if !result.status.success() {
                 return Err(CommonError::UnsuccessfullShell(result.status));
